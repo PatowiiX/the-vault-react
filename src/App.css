@@ -1,0 +1,99 @@
+/* VARIABLES */
+:root {
+  --neon-pink: #ff007f;
+  --neon-blue: #00f2ff;
+  --neon-green: #00ff88;
+  --dark-bg: #050505;
+  --heritage-gold: #d4af37;
+  --card-bg: #0f0f0f;
+}
+
+/* GLOBAL */
+body {
+  background-color: var(--dark-bg) !important;
+  color: white !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+}
+
+/* COLORES DE BOTONES */
+.btn-pink {
+  background: var(--neon-pink);
+  color: white;
+  border: none;
+}
+
+.btn-pink:hover {
+  background: #ff3399;
+  color: white;
+}
+
+.btn-blue {
+  background: var(--neon-blue);
+  color: black;
+  border: none;
+}
+
+.btn-blue:hover {
+  background: #33e6ff;
+  color: black;
+}
+
+.btn-gold {
+  background: var(--heritage-gold);
+  color: black;
+  border: none;
+}
+
+.btn-gold:hover {
+  background: #e6c158;
+  color: black;
+}
+
+/* COLORES DE TEXTO */
+.text-pink { color: var(--neon-pink) !important; }
+.text-blue { color: var(--neon-blue) !important; }
+.text-gold { color: var(--heritage-gold) !important; }
+.text-green { color: var(--neon-green) !important; }
+
+/* BORDES */
+.border-pink { border-color: var(--neon-pink) !important; }
+.border-blue { border-color: var(--neon-blue) !important; }
+.border-gold { border-color: var(--heritage-gold) !important; }
+
+/* BADGES */
+.badge.bg-blue { background: var(--neon-blue) !important; color: black; }
+.badge.bg-pink { background: var(--neon-pink) !important; }
+.badge.bg-gold { background: var(--heritage-gold) !important; color: black; }
+
+/* TARJETAS ESPECIALES */
+.heritage-card {
+  background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+  border: 2px solid var(--heritage-gold) !important;
+  transition: transform 0.3s;
+}
+
+.heritage-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(212, 175, 55, 0.3);
+}
+
+/* NAVBAR */
+.navbar {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* CART */
+.cart-items .card {
+  transition: all 0.3s;
+}
+
+.cart-items .card:hover {
+  border-color: var(--neon-blue) !important;
+}
+
+/* FOOTER */
+footer {
+  background: rgba(0, 0, 0, 0.8);
+  border-top: 1px solid #333;
+}
