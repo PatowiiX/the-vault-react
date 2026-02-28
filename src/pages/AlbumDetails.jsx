@@ -6,15 +6,25 @@ import { useApp } from '../context/AppContext';
 const AlbumDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { adminProducts, addToCart, isLoggedIn } = useApp();
+  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp(); // 👈 AGREGAR refreshProducts
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 👇 REFRESCAR PRODUCTOS AL CARGAR LA PÁGINA
   useEffect(() => {
-    const foundAlbum = adminProducts.find(p => p.id === parseInt(id));
-    setAlbum(foundAlbum);
-    setLoading(false);
-  }, [id, adminProducts]);
+    const loadAlbum = async () => {
+      setLoading(true);
+      // Forzar recarga de productos desde el backend
+      await refreshProducts();
+      
+      // Buscar el álbum actualizado
+      const foundAlbum = adminProducts.find(p => p.id === parseInt(id));
+      setAlbum(foundAlbum);
+      setLoading(false);
+    };
+    
+    loadAlbum();
+  }, [id, adminProducts, refreshProducts]); // 👈 DEPENDENCIAS
 
   const handleAddToCart = () => {
     if (!isLoggedIn) {
@@ -134,6 +144,14 @@ const AlbumDetails = () => {
                   <i className="bi bi-calendar me-1"></i>
                   {album.year}
                 </span>
+
+                {/* BADGE DE STOCK BAJO */}
+                {album.stock > 0 && album.stock < 5 && (
+                  <span className="badge bg-warning text-dark">
+                    <i className="bi bi-exclamation-triangle me-1"></i>
+                    ¡Últimas {album.stock} unidades!
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -170,8 +188,8 @@ const AlbumDetails = () => {
                   </p>
                   <p className="mb-2">
                     <strong><i className="bi bi-box-seam me-2"></i>Stock:</strong> 
-                    <span className={`ms-2 ${album.stock < 5 ? 'text-danger' : 'text-success'}`}>
-                      {album.stock} unidades
+                    <span className={`ms-2 ${album.stock === 0 ? 'text-danger fw-bold' : album.stock < 5 ? 'text-warning' : 'text-success'}`}>
+                      {album.stock === 0 ? '❌ AGOTADO' : `${album.stock} unidades`}
                     </span>
                   </p>
                   {album.heritage && album.edition && (
@@ -219,10 +237,13 @@ const AlbumDetails = () => {
                 <button 
                   className={getButtonClass()}
                   onClick={handleAddToCart}
+                  disabled={album.stock === 0}
                   style={{
                     padding: '15px',
                     fontSize: '1.2rem',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    opacity: album.stock === 0 ? 0.6 : 1,
+                    cursor: album.stock === 0 ? 'not-allowed' : 'pointer'
                   }}
                 >
                   <span className="d-flex align-items-center justify-content-center">

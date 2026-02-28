@@ -5,7 +5,15 @@ import { useApp } from '../context/AppContext';
 import SearchBar from '../components/SearchBar';
 
 function Home() {
-  const { adminProducts, addToCart, isLoggedIn, cart, calculateCartCount } = useApp();
+  const { 
+    adminProducts, 
+    addToCart, 
+    isLoggedIn, 
+    cart, 
+    calculateCartCount,
+    refreshProducts
+  } = useApp();
+  
   const navigate = useNavigate();
   
   const [displayProducts, setDisplayProducts] = useState([]);
@@ -19,28 +27,43 @@ function Home() {
   const [isSending, setIsSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
 
+  // REFRESCAR PRODUCTOS AL CARGAR HOME
+  useEffect(() => {
+    refreshProducts();
+  }, [refreshProducts]);
+
   // ============================================
-  // ✅ TOP 5 AHORA SON DINÁMICOS (FILTRA POR featured = true)
+  // TOP 5 DINÁMICOS - CORREGIDO
   // ============================================
   const topProducts = useMemo(() => {
-    console.log("🎯 Calculando TOP 5 con productos:", adminProducts.length);
+    console.log("🎯 Productos desde BD:", adminProducts.map(p => ({ 
+      id: p.id,
+      title: p.title, 
+      top: p.top,
+      featured: p.featured 
+    })));
     
-    // 1. Filtrar los que tienen featured = true
-    const destacados = adminProducts.filter(p => p.featured === true);
+    // ✅ FILTRA POR top=1 O featured=true
+    const destacados = adminProducts.filter(p => 
+      p.top === 1 || p.featured === true
+    );
     
     console.log("⭐ Destacados encontrados:", destacados.length);
     
-    // 2. Si hay 5 o más, tomar los primeros 5
+    // Si hay 5 o más, mostrar los primeros 5
     if (destacados.length >= 5) {
       return destacados.slice(0, 5);
     }
     
-    // 3. Si hay menos de 5, completar con otros productos
+    // Si hay menos de 5, completar con otros productos
     const otros = adminProducts
-      .filter(p => p.featured !== true)
+      .filter(p => p.top !== 1 && p.featured !== true)
       .slice(0, 5 - destacados.length);
     
-    return [...destacados, ...otros];
+    const resultado = [...destacados, ...otros];
+    console.log("✅ TOP 5 final:", resultado.map(p => p.title));
+    
+    return resultado;
   }, [adminProducts]);
 
   useEffect(() => {
@@ -185,6 +208,13 @@ function Home() {
                         {product.stock === 0 && (
                           <span className="badge bg-danger position-absolute top-0 end-0 m-2" style={{ fontSize: '0.7rem' }}>
                             AGOTADO
+                          </span>
+                        )}
+                        
+                        {/* ✅ BADGE DE DESTACADO */}
+                        {(product.top === 1 || product.featured === true) && index === 0 && (
+                          <span className="badge bg-warning text-dark position-absolute top-0 start-0 m-2" style={{ fontSize: '0.7rem' }}>
+                            ⭐ DESTACADO
                           </span>
                         )}
                       </div>
@@ -416,4 +446,4 @@ function Home() {
   );
 }
 
-export default Home;//FEN
+export default Home;

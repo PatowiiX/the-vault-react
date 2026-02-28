@@ -14,7 +14,8 @@ export const AppProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState([]); // Estado para pedidos
+  const [orders, setOrders] = useState([]);
+  const [checkoutData, setCheckoutData] = useState(null);
 
   // ===== EFECTOS =====
   useEffect(() => {
@@ -48,6 +49,19 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('retrosound_cart', JSON.stringify(cart));
   }, [cart]);
+
+  // ===== FUNCIÓN PARA REFRESCAR PRODUCTOS =====
+  const refreshProducts = useCallback(async () => {
+    try {
+      console.log("🔄 Refrescando productos desde backend...");
+      const data = await discosService.getAll();
+      setAdminProducts(data);
+      console.log("✅ Productos actualizados:", data.length);
+      return data;
+    } catch (error) {
+      console.error("❌ Error refrescando productos:", error);
+    }
+  }, []);
 
   // ===== FUNCIONES DE AUTENTICACIÓN =====
   const login = async (credentials) => {
@@ -143,8 +157,7 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.ok) {
-        const updatedDiscos = await discosService.getAll();
-        setAdminProducts(updatedDiscos);
+        await refreshProducts();
         return { success: true };
       } else {
         return { success: false, message: data.error };
@@ -185,8 +198,7 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.ok) {
-        const updatedDiscos = await discosService.getAll();
-        setAdminProducts(updatedDiscos);
+        await refreshProducts();
         return { success: true };
       } else {
         return { success: false, message: data.error };
@@ -316,7 +328,7 @@ export const AppProvider = ({ children }) => {
       
       const data = await response.json();
       if (data.ok) {
-        await fetchOrders(); // Recargar
+        await fetchOrders();
         return { success: true };
       }
     } catch (error) {
@@ -324,6 +336,12 @@ export const AppProvider = ({ children }) => {
       return { success: false };
     }
   }, [isAdmin, fetchOrders]);
+
+  // ===== FUNCIÓN PARA GUARDAR DATOS DEL CHECKOUT =====
+  const saveCheckoutData = useCallback((data) => {
+    console.log("💾 Guardando datos del checkout:", data);
+    setCheckoutData(data);
+  }, []);
 
   // ===== FUNCIONES DE PAGO =====
   const processPayment = useCallback(async (paymentDetails) => {
@@ -386,32 +404,49 @@ export const AppProvider = ({ children }) => {
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
 
+  // ===== CAPTURE PAYPAL ORDER - CORREGIDO =====
   const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
     try {
+      // SIEMPRE usar checkoutData si existe, porque es el que guardamos ANTES de ir a PayPal
+      const datosParaEnviar = {
+        orderId,
+        paymentDetails,
+        usuario_id: currentUser?.id,
+        cart: checkoutData?.cart || cart, // Priorizar checkoutData
+        shippingAddress: checkoutData?.shippingAddress || paymentDetails?.shippingAddress || {},
+        total: checkoutData?.total || calculateCartGrandTotal(),
+        subtotal: checkoutData?.subtotal || calculateCartTotal(),
+        tax: checkoutData?.tax || calculateCartTax(),
+        shipping: checkoutData?.shipping || calculateCartShipping()
+      };
+
+      console.log("=".repeat(50));
+      console.log("🔥 ENVIANDO A CAPTURE-ORDER:");
+      console.log("📦 Cart items:", datosParaEnviar.cart?.length || 0);
+      console.log("📦 Cart detalle:", JSON.stringify(datosParaEnviar.cart, null, 2));
+      console.log("=".repeat(50));
+
       const response = await fetch(`${API_URL}/paypal/capture-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          paymentDetails,
-          usuario_id: currentUser?.id,
-          cart: cart
-        })
+        body: JSON.stringify(datosParaEnviar)
       });
 
       const data = await response.json();
+      console.log("✅ Respuesta del backend:", data);
       
       if (data.ok) {
         clearCart();
+        setCheckoutData(null);
         return data;
       } else {
         throw new Error(data.error || 'Error al procesar el pago');
       }
     } catch (error) {
-      console.error('Error capturing PayPal order:', error);
+      console.error('❌ Error en capturePayPalOrder:', error);
       throw error;
     }
-  }, [currentUser, cart, clearCart]);
+  }, [currentUser, cart, checkoutData, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart]);
 
   // ===== RETURN DEL PROVIDER =====
   return (
@@ -424,7 +459,8 @@ export const AppProvider = ({ children }) => {
         adminProducts,
         isAdmin,
         loading,
-        orders, // Pedidos
+        orders,
+        checkoutData,
         
         // Auth
         login,
@@ -435,6 +471,7 @@ export const AppProvider = ({ children }) => {
         addProduct,
         updateProduct,
         deleteProduct,
+        refreshProducts,
         
         // Carrito
         addToCart,
@@ -449,9 +486,12 @@ export const AppProvider = ({ children }) => {
         calculateCartGrandTotal,
         calculateCartCount,
         
-        // Pedidos (NUEVOS)
+        // Pedidos
         fetchOrders,
         updateOrderStatus,
+        
+        // Checkout
+        saveCheckoutData,
         
         // Pago
         processPayment,

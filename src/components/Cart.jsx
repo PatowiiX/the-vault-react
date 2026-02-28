@@ -16,7 +16,8 @@ const Cart = () => {
     calculateCartShipping,
     calculateCartGrandTotal,
     processPayment,
-    createPayPalOrder
+    createPayPalOrder,
+    saveCheckoutData  // 👈 NUEVO
   } = useApp();
   
   const navigate = useNavigate();
@@ -88,9 +89,18 @@ const Cart = () => {
     if (paymentData.method === 'paypal') {
       setProcessing(true);
       try {
+        // ✅ GUARDAR DATOS DEL CHECKOUT ANTES DE IR A PAYPAL
+        saveCheckoutData({
+          cart: cart,
+          shippingAddress: shippingData,
+          total: calculateCartGrandTotal(),
+          subtotal: calculateCartTotal(),
+          tax: calculateCartTax(),
+          shipping: calculateCartShipping()
+        });
+        
         const paypalOrder = await createPayPalOrder({
           shippingAddress: shippingData,
-          cart: cart,
           usuario_id: currentUser?.id
         });
         
@@ -103,6 +113,7 @@ const Cart = () => {
       return;
     }
 
+    // Pago con tarjeta (simulado)
     if (!paymentData.cardNumber || !paymentData.expiry || !paymentData.cvv) {
       alert('Completa todos los datos de pago');
       return;
@@ -925,4 +936,4 @@ const Cart = () => {
   );
 };
 
-export default Cart; //CORRECCIONES ACA HECHAS 
+export default Cart;

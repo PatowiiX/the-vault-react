@@ -11,7 +11,8 @@ const AdminPanel = () => {
     updateProduct, 
     deleteProduct,
     orders,
-    fetchOrders
+    fetchOrders,
+    refreshProducts  // 👈 AGREGADO
   } = useApp();
   
   const [editingProduct, setEditingProduct] = useState(null);
@@ -35,7 +36,6 @@ const AdminPanel = () => {
 
   const [newProduct, setNewProduct] = useState(initialFormState);
 
-  // Cargar pedidos cuando se activa la pestaña
   useEffect(() => {
     if (activeTab === 'orders' && isAdmin) {
       fetchOrders();
@@ -57,6 +57,7 @@ const AdminPanel = () => {
     
     if (result.success) {
       alert('Producto guardado en MySQL');
+      await refreshProducts(); // 👈 FORZAR RECARGA
       setNewProduct(initialFormState);
       setImagePreview('');
       setShowAddForm(false);
@@ -75,6 +76,7 @@ const AdminPanel = () => {
     
     if (result.success) {
       alert('Cambios guardados en la base de datos');
+      await refreshProducts(); // 👈 FORZAR RECARGA
       setEditingProduct(null);
     } else {
       alert('Error: ' + (result.message || 'No se pudo actualizar'));
@@ -86,6 +88,7 @@ const AdminPanel = () => {
       const result = await deleteProduct(id);
       if (result.success) {
         alert('Producto eliminado');
+        await refreshProducts(); // 👈 FORZAR RECARGA
       }
     }
   };
@@ -149,7 +152,6 @@ const AdminPanel = () => {
           )}
         </div>
 
-        {/* Estadísticas - Solo visibles en pestaña de productos */}
         {activeTab === 'products' && (
           <div className="row mb-4">
             <div className="col-md-3">
@@ -205,7 +207,6 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Tabs de navegación */}
         <ul className="nav nav-tabs border-secondary mb-4">
           <li className="nav-item">
             <button 
@@ -230,7 +231,6 @@ const AdminPanel = () => {
           </li>
         </ul>
 
-        {/* Contenido de las tabs */}
         {activeTab === 'products' ? (
           <div className="table-responsive bg-glass-dark p-3 rounded shadow">
             <table className="table table-dark table-hover align-middle table-inventory">
@@ -331,10 +331,9 @@ const AdminPanel = () => {
             )}
           </div>
         ) : (
-          <OrdersPanel /> // Componente de pedidos
+          <OrdersPanel />
         )}
 
-        {/* Modal de edición */}
         {editingProduct && (
           <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1050}}>
             <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -525,7 +524,6 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Modal de agregar producto */}
         {showAddForm && (
           <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1050}}>
             <div className="modal-dialog modal-lg modal-dialog-centered">
