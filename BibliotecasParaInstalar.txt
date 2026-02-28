@@ -1,0 +1,19 @@
+🖥️ BACKEND
+npm install express
+npm install mysql2
+npm install cors
+npm install dotenv
+npm install nodemailer
+npm install resend
+npm install node-fetch
+npm install crypto
+npm install --save-dev nodemon
+
+🖥️ FRONTEND
+npm install react
+npm install react-dom
+npm install react-router-dom
+npm install axios
+npm install bootstrap
+npm install react-bootstrap
+npm install bootstrap-icons

@@ -1,0 +1,15 @@
+PARA QUE SE DESPLIEGUE CORRECTAMENTE DEBEN DE INICIAR REACT Y NODE
+
+PARA EL FRONT
+cd (su ruta de proyecto) npm start
+
+PARA EL BACKEND
+cd (ruta de la carpeta del backend) node server.js
+
+SOLO ASI FUNCIONA, OJO!!!!!!
+
+Usuario de admin:
+admin
+admin123
+
+api key RESEND:re_aii6bGjT_4w647ujtLVKWntgUZfsYcTYG
