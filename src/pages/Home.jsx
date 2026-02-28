@@ -19,8 +19,28 @@ function Home() {
   const [isSending, setIsSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
 
+  // ============================================
+  // ✅ TOP 5 AHORA SON DINÁMICOS (FILTRA POR featured = true)
+  // ============================================
   const topProducts = useMemo(() => {
-    return adminProducts.slice(0, 5);
+    console.log("🎯 Calculando TOP 5 con productos:", adminProducts.length);
+    
+    // 1. Filtrar los que tienen featured = true
+    const destacados = adminProducts.filter(p => p.featured === true);
+    
+    console.log("⭐ Destacados encontrados:", destacados.length);
+    
+    // 2. Si hay 5 o más, tomar los primeros 5
+    if (destacados.length >= 5) {
+      return destacados.slice(0, 5);
+    }
+    
+    // 3. Si hay menos de 5, completar con otros productos
+    const otros = adminProducts
+      .filter(p => p.featured !== true)
+      .slice(0, 5 - destacados.length);
+    
+    return [...destacados, ...otros];
   }, [adminProducts]);
 
   useEffect(() => {
@@ -396,4 +416,4 @@ function Home() {
   );
 }
 
-export default Home; //NO MUEVAN MAS
+export default Home;//FEN
