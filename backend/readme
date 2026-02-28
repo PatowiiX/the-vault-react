@@ -1,58 +1,6 @@
-Backend terminado, camino a implementar!- Jairo
-- Jairo, podrias quitar las palabras antisonantes para que no las vea la maestra??- Pablo
-1. Define el modelo de datos primero
+NOTAS:
+DESGRACIADAMENTE, ALGUNOS ERRORES QUEDARON EN EL CAMINO
+1- BUG DE STOCK NO REDUCIENDO Y REGISTRO DE PEDIDO EN DB
+2- ERROR DE SELECCION Y ACTUALIZACION DE TOP 5
 
-Tu compañero ya dijo:
-
-discos
-
-usuarios
-
-permisos admin
-
-formatos: CD / Cassette / Vinyl
-
-contacto
-
-Eso ya define las tablas.
-
-📌 Tablas necesarias
-usuarios
-
-id
-
-nombre
-
-email
-
-password_hash
-
-rol (admin o user)
-
-discos
-
-id
-
-titulo
-
-artista
-
-formato (CD / Cassette / Vinyl)
-
-imagen_path
-
-año
-
-descripcion
-
-contacto
-
-id
-
-nombre
-
-email
-
-mensaje
-
-fecha
+UNA DISCULPA POR ELLO.
