@@ -333,4 +333,4 @@ const Boveda = () => {
   );
 };
 
-export default Boveda;
+export default Boveda; //SI

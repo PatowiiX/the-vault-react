@@ -925,4 +925,4 @@ const Cart = () => {
   );
 };
 
-export default Cart;
+export default Cart; //CORRECCIONES ACA HECHAS 

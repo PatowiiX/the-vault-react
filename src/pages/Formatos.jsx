@@ -273,4 +273,4 @@ const Formatos = () => {
   );
 };
 
-export default Formatos;
+export default Formatos; //HECHOP!
