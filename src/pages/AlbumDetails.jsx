@@ -2,57 +2,138 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
+const API_URL = 'http://localhost:3001/api';
+
 const AlbumDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { adminProducts, addToCart, isLoggedIn } = useApp(); // QUITAR refreshProducts
+  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [stockRealTime, setStockRealTime] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  // 👇 CORREGIDO: Solo buscar el álbum, sin refrescar
+  // Cargar álbum inicial desde adminProducts
   useEffect(() => {
+    console.log("🔵 AlbumDetails: Cargando ID:", id);
     setLoading(true);
     const foundAlbum = adminProducts.find(p => p.id === parseInt(id));
+    console.log("🔵 AlbumDetails: Álbum encontrado:", foundAlbum);
     setAlbum(foundAlbum);
     setLoading(false);
-  }, [id, adminProducts]); // SOLO DEPENDENCIAS NECESARIAS
+  }, [id, adminProducts]);
 
-  const handleAddToCart = () => {
+  // ✅ VERIFICAR STOCK EN TIEMPO REAL DIRECTAMENTE DE LA BD
+  useEffect(() => {
+    const verificarStockEnTiempoReal = async () => {
+      if (!id) return;
+      
+      try {
+        console.log("🔄 Verificando stock en tiempo real para ID:", id);
+        const response = await fetch(`${API_URL}/discos/${id}`);
+        const data = await response.json();
+        
+        if (data.disco) {
+          console.log("📦 Stock desde BD:", data.disco.stock);
+          setStockRealTime(data.disco.stock);
+          
+          // Actualizar el album con el stock real
+          setAlbum(prev => prev ? { ...prev, stock: data.disco.stock } : null);
+          setLastUpdated(new Date());
+        }
+      } catch (error) {
+        console.error("❌ Error verificando stock:", error);
+      }
+    };
+
+    // Verificar inmediatamente
+    verificarStockEnTiempoReal();
+
+    // Verificar cada 2 segundos mientras la página esté abierta
+    const intervalo = setInterval(verificarStockEnTiempoReal, 2000);
+
+    return () => clearInterval(intervalo);
+  }, [id]);
+
+  // Escuchar actualizaciones globales de productos
+  useEffect(() => {
+    const handleProductsUpdate = (event) => {
+      console.log("🔄 Productos actualizados globalmente, recargando álbum...");
+      const updatedProducts = event.detail || adminProducts;
+      const foundAlbum = updatedProducts.find(p => p.id === parseInt(id));
+      if (foundAlbum) {
+        setAlbum(foundAlbum);
+        setLastUpdated(new Date());
+      }
+    };
+
+    window.addEventListener('productsUpdated', handleProductsUpdate);
+    
+    return () => {
+      window.removeEventListener('productsUpdated', handleProductsUpdate);
+    };
+  }, [id, adminProducts]);
+
+  useEffect(() => {
+    refreshProducts();
+  }, [refreshProducts]);
+
+  const handleAddToCart = async () => {
+    console.log("🔵 AlbumDetails: handleAddToCart iniciado", album);
+    
     if (!isLoggedIn) {
+      console.log("🔴 AlbumDetails: Usuario no logueado");
       alert('⚠️ Debes iniciar sesión para agregar productos al carrito');
+      navigate('/login', { state: { from: `/album/${id}` } });
       return;
     }
     
-    if (album.stock <= 0) { // CAMBIADO a <= 0
-      alert(`❌ "${album.title}" está agotado`);
+    // Usar stock en tiempo real para la verificación
+    const stockActual = stockRealTime !== null ? stockRealTime : album?.stock;
+    
+    if (stockActual <= 0) {
+      console.log("🔴 AlbumDetails: Producto agotado, stock:", stockActual);
+      alert(`❌ "${album?.title}" está agotado`);
       return;
     }
     
-    const result = addToCart(album);
+    console.log("🟢 AlbumDetails: Llamando a addToCart");
+    setAddingToCart(true);
+    const result = await addToCart(album);
+    console.log("🟢 AlbumDetails: Resultado de addToCart:", result);
+    setAddingToCart(false);
+    
     if (result?.success) {
-      alert(`✅ ${album.title} agregado al carrito`);
+      await refreshProducts();
+      // Actualizar el album localmente
+      setAlbum(prev => prev ? { ...prev, stock: prev.stock - 1 } : null);
+      setLastUpdated(new Date());
     }
   };
 
   const getButtonClass = () => {
     if (!album) return '';
-    if (album.stock <= 0) return 'btn-adaptivo btn-sin-stock'; // CAMBIADO
+    const stockActual = stockRealTime !== null ? stockRealTime : album?.stock;
+    if (stockActual <= 0) return 'btn-adaptivo btn-sin-stock';
     if (!isLoggedIn) return 'btn-adaptivo btn-sin-sesion';
     return 'btn-adaptivo btn-con-sesion';
   };
 
   const getButtonIcon = () => {
     if (!album) return null;
-    if (album.stock <= 0) return <i className="bi bi-x-circle"></i>; // CAMBIADO
+    const stockActual = stockRealTime !== null ? stockRealTime : album?.stock;
+    if (stockActual <= 0) return <i className="bi bi-x-circle"></i>;
     if (!isLoggedIn) return <i className="bi bi-lock"></i>;
     return <i className="bi bi-cart-plus"></i>;
   };
 
   const getButtonText = () => {
     if (!album) return '';
-    if (album.stock <= 0) return 'AGOTADO'; // CAMBIADO
+    const stockActual = stockRealTime !== null ? stockRealTime : album?.stock;
+    if (stockActual <= 0) return '❌ AGOTADO';
     if (!isLoggedIn) return 'INICIAR SESIÓN PARA COMPRAR';
-    return 'AGREGAR AL CARRITO';
+    return addingToCart ? 'AGREGANDO...' : 'AGREGAR AL CARRITO';
   };
 
   if (loading) return (
@@ -82,6 +163,8 @@ const AlbumDetails = () => {
     </div>
   );
 
+  const stockActual = stockRealTime !== null ? stockRealTime : album.stock;
+
   return (
     <div className="content-view fade-in">
       <div className="container">
@@ -93,7 +176,6 @@ const AlbumDetails = () => {
         </button>
 
         <div className="row">
-          {/* IMAGEN GRANDE */}
           <div className="col-md-5">
             <div className="album-cover-large mb-4">
               <img 
@@ -104,7 +186,9 @@ const AlbumDetails = () => {
                   width: '100%', 
                   maxHeight: '500px', 
                   objectFit: 'cover',
-                  border: album.heritage ? '3px solid #d4af37' : 'none'
+                  border: album.heritage ? '3px solid #d4af37' : 'none',
+                  filter: stockActual <= 0 ? 'grayscale(100%)' : 'none',
+                  opacity: stockActual <= 0 ? 0.7 : 1
                 }}
               />
               
@@ -132,14 +216,14 @@ const AlbumDetails = () => {
                   {album.year}
                 </span>
 
-                {album.stock > 0 && album.stock < 5 && (
+                {stockActual > 0 && stockActual < 5 && (
                   <span className="badge bg-warning text-dark">
                     <i className="bi bi-exclamation-triangle me-1"></i>
-                    ¡Últimas {album.stock} unidades!
+                    ¡Últimas {stockActual} unidades!
                   </span>
                 )}
                 
-                {album.stock <= 0 && (
+                {stockActual <= 0 && (
                   <span className="badge bg-danger">
                     <i className="bi bi-x-circle me-1"></i>
                     AGOTADO
@@ -149,7 +233,6 @@ const AlbumDetails = () => {
             </div>
           </div>
 
-          {/* INFORMACIÓN DETALLADA */}
           <div className="col-md-7">
             <div className="card bg-dark text-white border-pink p-4 h-100">
               <h1 className="display-5 mb-2">{album.title}</h1>
@@ -180,9 +263,15 @@ const AlbumDetails = () => {
                   </p>
                   <p className="mb-2">
                     <strong><i className="bi bi-box-seam me-2"></i>Stock:</strong> 
-                    <span className={`ms-2 ${album.stock <= 0 ? 'text-danger fw-bold' : album.stock < 5 ? 'text-warning' : 'text-success'}`}>
-                      {album.stock <= 0 ? '❌ AGOTADO' : `${album.stock} unidades`}
+                    <span className={`ms-2 ${stockActual <= 0 ? 'text-danger fw-bold' : stockActual < 5 ? 'text-warning' : 'text-success'}`}>
+                      {stockActual <= 0 ? '❌ AGOTADO' : `${stockActual} unidades`}
                     </span>
+                  </p>
+                  {/* 👇 TIMESTAMP PARA VER CUÁNDO SE ACTUALIZÓ */}
+                  <p className="mb-0">
+                    <small className="text-muted">
+                      Actualizado: {lastUpdated.toLocaleTimeString()}
+                    </small>
                   </p>
                   {album.heritage && album.edition && (
                     <p className="mb-2">
@@ -226,20 +315,31 @@ const AlbumDetails = () => {
                 <button 
                   className={getButtonClass()}
                   onClick={handleAddToCart}
-                  disabled={album.stock <= 0}
+                  disabled={stockActual <= 0 || addingToCart}
                   style={{
                     padding: '15px',
                     fontSize: '1.2rem',
                     fontWeight: 'bold',
-                    opacity: album.stock <= 0 ? 0.6 : 1,
-                    cursor: album.stock <= 0 ? 'not-allowed' : 'pointer'
+                    opacity: stockActual <= 0 ? 0.6 : addingToCart ? 0.8 : 1,
+                    cursor: stockActual <= 0 ? 'not-allowed' : 'pointer'
                   }}
                 >
                   <span className="d-flex align-items-center justify-content-center">
-                    {getButtonIcon()}
+                    {addingToCart ? (
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                    ) : (
+                      getButtonIcon()
+                    )}
                     <span className="ms-2">{getButtonText()}</span>
                   </span>
                 </button>
+
+                {stockActual <= 0 && (
+                  <div className="alert alert-danger text-center mb-0">
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    Este producto está agotado temporalmente
+                  </div>
+                )}
               </div>
             </div>
           </div>

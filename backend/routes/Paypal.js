@@ -1,93 +1,112 @@
 const express = require("express");
 const router = express.Router();
 const fetch = require('node-fetch');
-const db = require("../db"); //  AGREGAR ESTO
+const db = require("../db");
 
-// Configuración de URL según el modo (Sandbox o Live)
 const PAYPAL_API = process.env.PAYPAL_MODE === 'live' 
   ? 'https://api-m.paypal.com'
   : 'https://api-m.sandbox.paypal.com';
 
-// ==========================================
-// FUNCIÓN: Obtener Token de Acceso de PayPal
-// ==========================================
 async function getPayPalAccessToken() {
-  const auth = Buffer.from(
-    `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`
-  ).toString('base64');
+  try {
+    const auth = Buffer.from(
+      `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`
+    ).toString('base64');
 
-  const response = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
-    method: 'POST',
-    body: 'grant_type=client_credentials',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
+    const response = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
+      method: 'POST',
+      body: 'grant_type=client_credentials',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
 
-  const data = await response.json();
-  return data.access_token;
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('PayPal no devolvió JSON:', text.substring(0, 200));
+      throw new Error('PayPal API error: Respuesta no es JSON');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`PayPal Auth Error: ${errorData.error_description || errorData.error}`);
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error('Error obteniendo token de PayPal:', error);
+    throw error;
+  }
 }
 
-// ==========================================
-// RUTA 1: Crear orden en PayPal (CON VERIFICACIÓN DE STOCK)
-// ==========================================
 router.post("/create-order", async (req, res) => {
   try {
     const { cart, subtotal, tax, shipping, total } = req.body;
 
-    // VERIFICAR STOCK ANTES DE CREAR ORDEN PAYPAL
-    for (const item of cart) {
-      const [rows] = await db.promise().query(
-        "SELECT stock FROM discos WHERE id = ?",
-        [item.id]
-      );
-      
-      if (rows.length === 0) {
-        return res.status(400).json({ 
-          error: `Producto "${item.title}" no encontrado` 
-        });
-      }
-      
-      if (rows[0].stock < item.quantity) {
-        return res.status(400).json({ 
-          error: `Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}` 
-        });
-      }
+    if (!cart || !Array.isArray(cart) || cart.length === 0) {
+      return res.status(400).json({ error: "Carrito vacío o inválido" });
     }
 
-    console.log("Stock verificado, creando orden PayPal...");
+    const connection = await db.promise().getConnection();
+    
+    try {
+      for (const item of cart) {
+        const [rows] = await connection.query(
+          "SELECT stock, titulo FROM discos WHERE id = ?", 
+          [item.id]
+        );
+        
+        if (rows.length === 0) {
+          return res.status(400).json({ error: `Producto "${item.title}" no encontrado` });
+        }
+        
+        console.log(`📦 Producto ${item.title}: Stock en BD = ${rows[0].stock}, Solicitado = ${item.quantity}`);
+        
+        if (rows[0].stock < item.quantity) {
+          return res.status(400).json({ 
+            error: `Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}, Solicitado: ${item.quantity}` 
+          });
+        }
+      }
+    } finally {
+      connection.release();
+    }
 
     const accessToken = await getPayPalAccessToken();
 
     const items = cart.map(item => ({
-      name: `${item.title} - ${item.artist}`,
-      unit_amount: {
-        currency_code: 'MXN',
-        value: parseFloat(item.price).toFixed(2)
+      name: `${item.title} - ${item.artist}`.substring(0, 127),
+      unit_amount: { 
+        currency_code: 'MXN', 
+        value: parseFloat(item.price).toFixed(2) 
       },
-      quantity: item.quantity
+      quantity: item.quantity.toString()
     }));
 
     const paypalOrder = {
       intent: 'CAPTURE',
       purchase_units: [{
-        items: items,
+        reference_id: `ORDER_${Date.now()}`,
+        description: 'Compra en The Vault',
+        items,
         amount: {
           currency_code: 'MXN',
           value: parseFloat(total).toFixed(2),
           breakdown: {
-            item_total: {
-              currency_code: 'MXN',
-              value: parseFloat(subtotal).toFixed(2)
+            item_total: { 
+              currency_code: 'MXN', 
+              value: parseFloat(subtotal).toFixed(2) 
             },
-            tax_total: {
-              currency_code: 'MXN',
-              value: parseFloat(tax).toFixed(2)
+            tax_total: { 
+              currency_code: 'MXN', 
+              value: parseFloat(tax || 0).toFixed(2) 
             },
-            shipping: {
-              currency_code: 'MXN',
-              value: parseFloat(shipping).toFixed(2)
+            shipping: { 
+              currency_code: 'MXN', 
+              value: parseFloat(shipping || 0).toFixed(2) 
             }
           }
         }
@@ -96,48 +115,78 @@ router.post("/create-order", async (req, res) => {
         brand_name: 'The Vault',
         landing_page: 'BILLING',
         user_action: 'PAY_NOW',
-        return_url: 'http://localhost:3000/pago-exitoso',
-        cancel_url: 'http://localhost:3000/carrito'
+        shipping_preference: 'NO_SHIPPING',
+        return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pago-exitoso`,
+        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart`
       }
     };
 
     const response = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+      headers: { 
+        'Content-Type': 'application/json', 
         Authorization: `Bearer ${accessToken}`,
+        'PayPal-Request-Id': `req-${Date.now()}`
       },
       body: JSON.stringify(paypalOrder),
     });
 
-    const data = await response.json();
-    res.json(data);
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('PayPal create-order no devolvió JSON:', text.substring(0, 500));
+      return res.status(500).json({ error: 'Error en comunicación con PayPal' });
+    }
 
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('PayPal error:', data);
+      return res.status(400).json({ 
+        error: data.details?.[0]?.description || data.message || 'Error creando orden en PayPal' 
+      });
+    }
+
+    res.json(data);
+    
   } catch (error) {
-    console.error('❌ Error al crear orden PayPal:', error);
-    res.status(500).json({ error: 'Error al crear orden' });
+    console.error('Error en create-order:', error);
+    res.status(500).json({ error: error.message || 'Error al crear orden' });
   }
 });
 
-// ==========================================
-// RUTA 2: Capturar Pago y Registrar en BD
-// ==========================================
 router.post("/capture-order", async (req, res) => {
-  console.log("\n--- INICIANDO CAPTURA DE PAGO ---");
-  
   const { orderId, usuario_id, cart, total, subtotal, tax, shipping } = req.body;
 
-  //  INICIAR CONEXIÓN PARA TRANSACCIÓN
+  console.log("📥 Recibido en /capture-order:", { 
+    orderId, 
+    usuario_id, 
+    cartLength: cart?.length,
+    total 
+  });
+
+  if (!orderId) {
+    return res.status(400).json({ error: "ID de orden de PayPal requerido" });
+  }
+
+  if (!usuario_id) {
+    return res.status(400).json({ error: "ID de usuario requerido" });
+  }
+
+  if (!cart || !Array.isArray(cart) || cart.length === 0) {
+    return res.status(400).json({ error: "Carrito inválido" });
+  }
+
   const connection = await db.promise().getConnection();
   
   try {
-    // INICIAR TRANSACCIÓN
     await connection.beginTransaction();
 
-    // 1. VERIFICAR STOCK NUEVAMENTE (por si acaso)
+    console.log("🔒 Iniciando verificación de stock con bloqueo...");
+    
     for (const item of cart) {
       const [rows] = await connection.query(
-        "SELECT id, titulo, stock FROM discos WHERE id = ? FOR UPDATE",
+        "SELECT stock, titulo FROM discos WHERE id = ? FOR UPDATE", 
         [item.id]
       );
       
@@ -145,119 +194,163 @@ router.post("/capture-order", async (req, res) => {
         throw new Error(`Producto "${item.title}" no encontrado`);
       }
       
+      console.log(`🔍 Producto ${item.title}: Stock actual = ${rows[0].stock}, Solicitado = ${item.quantity}`);
+      
       if (rows[0].stock < item.quantity) {
-        throw new Error(`Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}`);
+        throw new Error(`Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}, Solicitado: ${item.quantity}`);
       }
     }
 
-    // 2. Obtener token y capturar en PayPal
+    console.log("💳 Capturando pago en PayPal...");
+    
     const accessToken = await getPayPalAccessToken();
+    
     const response = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+      headers: { 
+        'Content-Type': 'application/json', 
         Authorization: `Bearer ${accessToken}`,
+        'PayPal-Request-Id': `capture-${orderId}-${Date.now()}`
       },
     });
 
-    const paypalData = await response.json();
-
-    // 3. VALIDACIÓN: Verificar si el pago fue exitoso
-    if (paypalData.status !== 'COMPLETED') {
-      console.error("⚠️ PayPal respondió con estado:", paypalData.status);
-      
-      await connection.rollback();
-      connection.release();
-      
-      if (paypalData.name === 'UNPROCESSABLE_ENTITY' && paypalData.details?.[0]?.issue === 'ORDER_ALREADY_CAPTURED') {
-        return res.status(400).json({ 
-          error: "Esta orden ya fue procesada anteriormente.", 
-          detalles: paypalData 
-        });
-      }
-
-      return res.status(400).json({ error: "No se pudo completar el pago en PayPal", detalles: paypalData });
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('PayPal capture no devolvió JSON:', text.substring(0, 500));
+      throw new Error('Error en respuesta de PayPal');
     }
 
-    console.log("💰 PayPal: Pago COMPLETED. Actualizando stock...");
+    const paypalData = await response.json();
+    
+    if (!response.ok) {
+      console.error('PayPal capture error:', paypalData);
+      
+      // ✅ VERIFICAR SI EL ERROR ES PORQUE YA FUE CAPTURADA
+      if (paypalData.name === 'ORDER_ALREADY_CAPTURED') {
+        console.log("⚠️ La orden ya fue capturada anteriormente");
+        
+        // ✅ VERIFICAR SI YA CREAMOS LA ORDEN EN NUESTRA BD
+        const [ordenExistente] = await connection.query(
+          "SELECT id FROM ordenes WHERE paypal_order_id = ?",
+          [orderId]
+        );
+        
+        if (ordenExistente.length > 0) {
+          console.log("✅ Orden ya existe en BD, devolviendo datos existentes");
+          await connection.commit();
+          return res.json({
+            ok: true,
+            orden_id: ordenExistente[0].id,
+            message: "Orden ya procesada anteriormente"
+          });
+        }
+      }
+      
+      throw new Error(paypalData.message || 'No se pudo completar el pago en PayPal');
+    }
 
-    // 4. ACTUALIZAR STOCK DIRECTAMENTE (más seguro que llamar a otra API)
+    if (paypalData.status !== 'COMPLETED') {
+      throw new Error(`Estado inesperado de PayPal: ${paypalData.status}`);
+    }
+
+    console.log("✅ Pago capturado en PayPal:", paypalData.status);
+
+    console.log("📦 Actualizando stock...");
+    
     for (const item of cart) {
       const [rows] = await connection.query(
-        "SELECT stock FROM discos WHERE id = ? FOR UPDATE",
+        "SELECT stock FROM discos WHERE id = ? FOR UPDATE", 
         [item.id]
       );
-      
-      const stockAnterior = rows[0].stock;
-      const stockNuevo = stockAnterior - item.quantity;
+      const stockNuevo = rows[0].stock - item.quantity;
       
       await connection.query(
-        "UPDATE discos SET stock = ? WHERE id = ?",
+        "UPDATE discos SET stock = ? WHERE id = ?", 
         [stockNuevo, item.id]
       );
       
-      // Registrar en stock_history
-      await connection.query(
-        `INSERT INTO stock_history (disco_id, cambio, stock_anterior, stock_nuevo, motivo) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [item.id, -item.quantity, stockAnterior, stockNuevo, 'paypal_compra']
-      );
+      console.log(`✅ Stock actualizado: ${item.title} = ${stockNuevo}`);
       
-      console.log(`📦 Stock actualizado: ${item.title} (${stockAnterior} → ${stockNuevo})`);
+      // ✅ VERIFICAR SI EXISTE LA TABLA stock_history
+      try {
+        await connection.query(
+          `INSERT INTO stock_history 
+           (disco_id, cambio, stock_anterior, stock_nuevo, motivo, created_at) 
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [item.id, -item.quantity, rows[0].stock, stockNuevo, 'paypal_compra']
+        );
+      } catch (err) {
+        console.log("⚠️ No se pudo insertar en stock_history (tabla no existe)");
+      }
     }
 
-    // 5. CREAR ORDEN EN BASE DE DATOS
     const trackingNumber = `TRK-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const estimatedDelivery = new Date();
-    estimatedDelivery.setDate(estimatedDelivery.getDate() + 5);
+    const estimatedDelivery = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
 
     const [ordenResult] = await connection.query(
       `INSERT INTO ordenes 
-       (usuario_id, total, estado, orden_items, shipping_cost, tax_amount, subtotal, tracking_number, estimated_delivery) 
-       VALUES (?, ?, 'pagado', ?, ?, ?, ?, ?, ?)`,
+       (usuario_id, total, estado, orden_items, shipping_cost, tax_amount, subtotal, 
+        tracking_number, estimated_delivery, paypal_order_id, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        usuario_id, 
-        total, 
-        JSON.stringify(cart), 
-        shipping || 0, 
-        tax || 0, 
-        subtotal || 0, 
-        trackingNumber, 
-        estimatedDelivery
+        usuario_id,
+        total,
+        'pagado',
+        JSON.stringify(cart),
+        shipping || 0,
+        tax || 0,
+        subtotal || 0,
+        trackingNumber,
+        estimatedDelivery,
+        orderId
       ]
     );
 
-    const ordenId = ordenResult.insertId;
-
-    // 6. LIMPIAR CARRITO DEL USUARIO
-    if (usuario_id) {
-      await connection.query("DELETE FROM carrito WHERE usuario_id = ?", [usuario_id]);
+    // ✅ INTENTAR ELIMINAR CARRITO (CON VERIFICACIÓN)
+    try {
+      const [tablas] = await connection.query("SHOW TABLES LIKE 'carrito_items'");
+      if (tablas.length > 0) {
+        await connection.query(
+          "DELETE FROM carrito_items WHERE carrito_id IN (SELECT id FROM carritos WHERE usuario_id = ?)",
+          [usuario_id]
+        );
+        console.log("✅ Carrito items eliminados");
+      }
+    } catch (err) {
+      console.log("⚠️ No se pudo eliminar carrito_items:", err.message);
     }
 
-    // 7. CONFIRMAR TRANSACCIÓN
+    try {
+      const [tablas] = await connection.query("SHOW TABLES LIKE 'carritos'");
+      if (tablas.length > 0) {
+        await connection.query(
+          "DELETE FROM carritos WHERE usuario_id = ?",
+          [usuario_id]
+        );
+        console.log("✅ Carrito eliminado");
+      }
+    } catch (err) {
+      console.log("⚠️ No se pudo eliminar carritos:", err.message);
+    }
+
     await connection.commit();
-    connection.release();
+    console.log("✅ Transacción completada exitosamente");
 
-    console.log(`✅ Orden #${ordenId} creada con éxito. Tracking: ${trackingNumber}`);
-
-    // 8. RESPUESTA FINAL AL FRONTEND
-    res.json({ 
-      ok: true, 
-      orden_id: ordenId,
+    res.json({
+      ok: true,
+      orden_id: ordenResult.insertId,
       tracking_number: trackingNumber,
-      message: "Pago procesado, stock actualizado y orden registrada"
+      paypal_status: paypalData.status,
+      message: "Pago procesado exitosamente"
     });
 
   } catch (error) {
-    // SI ALGO FALLA, REVERTIR TODO
     await connection.rollback();
+    console.error('❌ Error en capture-order (rollback ejecutado):', error);
+    res.status(500).json({ error: error.message || 'Error procesando pago' });
+  } finally {
     connection.release();
-    
-    console.error('❌ Error crítico en /capture-order:', error);
-    res.status(500).json({ 
-      error: error.message || "Error al procesar el pago",
-      detalles: "La transacción ha sido revertida. No se ha cobrado ni descontado stock."
-    });
   }
 });
 

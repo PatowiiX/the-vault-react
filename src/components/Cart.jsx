@@ -15,7 +15,8 @@ const Cart = () => {
     calculateCartShipping,
     calculateCartGrandTotal,
     createPayPalOrder,
-    saveCheckoutData
+    saveCheckoutData,
+    refreshProducts
   } = useApp();
   
   const navigate = useNavigate();
@@ -31,19 +32,26 @@ const Cart = () => {
 
   // Verificar stock antes de checkout
   useEffect(() => {
-    if (cart.length > 0) {
-      const errors = [];
-      cart.forEach(item => {
-        if (item.quantity > (item.stock || 0)) {
-          errors.push(`"${item.title}" solo tiene ${item.stock} unidades disponibles`);
-        }
-        if (item.stock <= 0) {
-          errors.push(`"${item.title}" está AGOTADO y debe ser eliminado`);
-        }
-      });
-      setStockErrors(errors);
-    }
-  }, [cart]);
+    const checkStock = async () => {
+      if (cart.length > 0) {
+        // Actualizar stock desde la BD
+        await refreshProducts();
+        
+        const errors = [];
+        cart.forEach(item => {
+          if (item.quantity > (item.stock || 0)) {
+            errors.push(`"${item.title}" solo tiene ${item.stock} unidades disponibles`);
+          }
+          if (item.stock <= 0) {
+            errors.push(`"${item.title}" está AGOTADO y debe ser eliminado`);
+          }
+        });
+        setStockErrors(errors);
+      }
+    };
+    
+    checkStock();
+  }, [cart, refreshProducts]);
 
   const handleCheckout = async () => {
     if (!isLoggedIn) {
@@ -64,7 +72,25 @@ const Cart = () => {
       return;
     }
     
-    setCheckoutStep('shipping');
+    // Verificar stock en tiempo real antes de proceder
+    setProcessing(true);
+    try {
+      await refreshProducts();
+      
+      // Verificar nuevamente después del refresh
+      const stillHasStock = cart.every(item => item.stock >= item.quantity);
+      if (!stillHasStock) {
+        alert('❌ El stock cambió. Por favor revisa tu carrito.');
+        setProcessing(false);
+        return;
+      }
+      
+      setCheckoutStep('shipping');
+    } catch (error) {
+      alert('Error verificando stock');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleShippingSubmit = () => {
@@ -73,32 +99,43 @@ const Cart = () => {
       return;
     }
     
-    // Ir directamente a PayPal (sin opción de tarjeta)
     handlePayPalPayment();
   };
 
-  // ============================================
-  // SOLO PAYPAL - SIN TARJETA
-  // ============================================
   const handlePayPalPayment = async () => {
     setProcessing(true);
     try {
-      // Guardar datos del checkout antes de ir a PayPal
-      saveCheckoutData({
+      // Verificar stock una última vez
+      await refreshProducts();
+      
+      const hasStockIssues = cart.some(item => item.quantity > item.stock);
+      if (hasStockIssues) {
+        alert('❌ El stock cambió. Por favor revisa tu carrito.');
+        setProcessing(false);
+        return;
+      }
+      
+      // Preparar datos del checkout
+      const datosCheckout = {
         cart: cart,
         shippingAddress: shippingData,
         total: calculateCartGrandTotal(),
         subtotal: calculateCartTotal(),
         tax: calculateCartTax(),
-        shipping: calculateCartShipping()
-      });
+        shipping: calculateCartShipping(),
+        usuario_id: currentUser?.id
+      };
+      
+      console.log("💾 Guardando checkoutData:", datosCheckout);
+      
+      saveCheckoutData(datosCheckout);
+      sessionStorage.setItem('pendingCheckout', JSON.stringify(datosCheckout));
       
       const paypalOrder = await createPayPalOrder({
         shippingAddress: shippingData,
         usuario_id: currentUser?.id
       });
       
-      // Validar respuesta de PayPal
       if (!paypalOrder) {
         throw new Error('No se recibió respuesta de PayPal');
       }
@@ -124,7 +161,9 @@ const Cart = () => {
 
   const handleQuantityChange = (item, newQuantity) => {
     if (newQuantity < 1) {
-      removeFromCart(item.id);
+      if (window.confirm(`¿Eliminar "${item.title}" del carrito?`)) {
+        removeFromCart(item.id);
+      }
     } else if (item.stock <= 0) {
       alert(`"${item.title}" está AGOTADO. Elimínalo del carrito.`);
     } else if (newQuantity > (item.stock || Infinity)) {
@@ -134,7 +173,7 @@ const Cart = () => {
     }
   };
 
-  // Vista de dirección de envío (único paso antes de PayPal)
+  // Vista de dirección de envío
   if (checkoutStep === 'shipping') {
     return (
       <div className="content-view fade-in">
@@ -220,7 +259,6 @@ const Cart = () => {
                           </select>
                         </div>
 
-                        {/* Información de PayPal */}
                         <div className="alert alert-info mt-3">
                           <i className="bi bi-paypal me-2"></i>
                           <strong>Pago con PayPal</strong>
@@ -432,7 +470,10 @@ const Cart = () => {
                             </small>
                           </>
                         ) : (
-                          <div className="text-danger fw-bold">NO DISPONIBLE</div>
+                          <div className="text-danger fw-bold">
+                            <i className="bi bi-x-circle me-1"></i>
+                            NO DISPONIBLE
+                          </div>
                         )}
                       </div>
                       
@@ -449,7 +490,11 @@ const Cart = () => {
                     <div className="mt-3 text-end">
                       <button 
                         className="btn btn-outline-danger btn-sm"
-                        onClick={() => removeFromCart(item.id)}
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar "${item.title}" del carrito?`)) {
+                            removeFromCart(item.id);
+                          }
+                        }}
                       >
                         <i className="bi bi-trash me-1"></i>
                         Eliminar
@@ -539,7 +584,7 @@ const Cart = () => {
                   <button 
                     className="btn text-center py-3 fw-bold"
                     onClick={handleCheckout}
-                    disabled={!isLoggedIn || stockErrors.length > 0}
+                    disabled={!isLoggedIn || stockErrors.length > 0 || processing}
                     style={{
                       background: !isLoggedIn || stockErrors.length > 0
                         ? 'linear-gradient(45deg, #666, #444)'
@@ -550,12 +595,21 @@ const Cart = () => {
                       cursor: !isLoggedIn || stockErrors.length > 0 ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    <i className="bi bi-paypal me-2"></i>
-                    {!isLoggedIn 
-                      ? 'INICIA SESIÓN PARA PAGAR'
-                      : stockErrors.length > 0
-                        ? 'PROBLEMAS DE STOCK'
-                        : 'PROCEDER AL PAGO'}
+                    {processing ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        VERIFICANDO STOCK...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-paypal me-2"></i>
+                        {!isLoggedIn 
+                          ? 'INICIA SESIÓN PARA PAGAR'
+                          : stockErrors.length > 0
+                            ? 'PROBLEMAS DE STOCK'
+                            : 'PROCEDER AL PAGO'}
+                      </>
+                    )}
                   </button>
                 </div>
                 

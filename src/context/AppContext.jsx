@@ -3,7 +3,6 @@ import { discosService } from '../services/api';
 
 const AppContext = createContext();
 
-// URL base del backend
 const API_URL = 'http://localhost:3001/api';
 
 export const AppProvider = ({ children }) => {
@@ -15,9 +14,8 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [checkoutData, setCheckoutData] = useState(null);
-  const [topDestacados, setTopDestacados] = useState([]); // 👈 NUEVO
+  const [topDestacados, setTopDestacados] = useState([]);
 
-  // ===== EFECTOS =====
   useEffect(() => {
     const loadInitialData = async () => {
       try {
@@ -50,25 +48,26 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('retrosound_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // ===== FUNCIÓN PARA REFRESCAR PRODUCTOS - MEJORADA =====
+  // ✅ REFRESH PRODUCTOS MEJORADO - ACTUALIZA TODO
   const refreshProducts = useCallback(async () => {
     try {
-      console.log("🔄 Refrescando productos desde backend...");
+      console.log("🔄 Refrescando productos desde MySQL...");
       const data = await discosService.getAll();
-      
-      // VERIFICAR que los datos tienen el campo 'top' correctamente mapeado
-      console.log("📊 Datos recibidos:", data.map(p => ({ 
-        id: p.id, 
-        title: p.title, 
-        top: p.top, 
-        featured: p.featured 
-      })));
-      
       setAdminProducts(data);
-      console.log("✅ Productos actualizados:", data.length);
       
-      // 👉 NUEVO: Disparar evento personalizado para que Home se entere
-      window.dispatchEvent(new Event('productsUpdated'));
+      // Actualizar stock en el carrito
+      setCart(prevCart => {
+        return prevCart.map(cartItem => {
+          const updatedProduct = data.find(p => p.id === cartItem.id);
+          if (updatedProduct) {
+            return { ...cartItem, stock: updatedProduct.stock };
+          }
+          return cartItem;
+        });
+      });
+      
+      // Disparar evento global para que todos los componentes se actualicen
+      window.dispatchEvent(new CustomEvent('productsUpdated', { detail: data }));
       
       return data;
     } catch (error) {
@@ -76,12 +75,8 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // ===== NUEVA FUNCIÓN PARA TOP DESTACADOS =====
   const fetchTopDestacados = useCallback(async () => {
     try {
-      console.log("🎵 Cargando top 5 destacados...");
-      // Esta función la puedes implementar después si quieres
-      // un endpoint específico para top 5
       const destacados = adminProducts.filter(p => p.top === 1 || p.featured === true);
       setTopDestacados(destacados.slice(0, 5));
       return destacados.slice(0, 5);
@@ -91,7 +86,6 @@ export const AppProvider = ({ children }) => {
     }
   }, [adminProducts]);
 
-  // ===== FUNCIONES DE AUTENTICACIÓN =====
   const login = async (credentials) => {
     try {
       const response = await fetch(`${API_URL}/usuarios/login`, {
@@ -154,7 +148,6 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  // ===== FUNCIONES DE PRODUCTOS =====
   const addProduct = async (productData) => {
     try {
       const datosParaDB = {
@@ -250,7 +243,7 @@ export const AppProvider = ({ children }) => {
       
       if (data.ok) {
         setAdminProducts(prev => prev.filter(p => p.id !== id));
-        await refreshProducts(); // ASEGURAR REFRESH
+        await refreshProducts();
         return { success: true };
       } else {
         return { success: false, message: data.error };
@@ -261,25 +254,64 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ===== FUNCIONES DEL CARRITO =====
-  const addToCart = (product, quantity = 1) => {
+  // ✅ ADD TO CART CORREGIDO
+  const addToCart = async (product, quantity = 1) => {
+    console.log("🔵 addToCart iniciado", { product, quantity });
+    
     if (!isLoggedIn) {
+      alert('⚠️ Debes iniciar sesión');
       return { success: false, message: "Debes iniciar sesión" };
     }
-    
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => 
-          item.id === product.id 
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
+
+    try {
+      // Intentar obtener stock de la BD
+      let stockReal = product.stock || 0;
+      
+      try {
+        const response = await fetch(`${API_URL}/discos/${product.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.disco) {
+            stockReal = data.disco.stock;
+          }
+        }
+      } catch (error) {
+        console.log("⚠️ Usando stock local");
       }
-      return [...prev, { ...product, quantity }];
-    });
-    
-    return { success: true };
+
+      if (stockReal <= 0) {
+        alert(`❌ "${product.title}" está AGOTADO`);
+        return { success: false, message: "Producto agotado" };
+      }
+
+      const existingItem = cart.find(item => item.id === product.id);
+      const currentQty = existingItem ? existingItem.quantity : 0;
+      
+      if (currentQty + quantity > stockReal) {
+        alert(`❌ Solo hay ${stockReal - currentQty} disponibles`);
+        return { success: false, message: "Stock insuficiente" };
+      }
+
+      // Agregar al carrito
+      setCart(prev => {
+        if (existingItem) {
+          return prev.map(item => 
+            item.id === product.id 
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          );
+        }
+        return [...prev, { ...product, quantity, stock: stockReal }];
+      });
+
+      alert(`✅ "${product.title}" agregado al carrito`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error("Error:", error);
+      alert('❌ Error al agregar');
+      return { success: false };
+    }
   };
 
   const removeFromCart = (productId) => {
@@ -289,6 +321,12 @@ export const AppProvider = ({ children }) => {
   const updateCartQuantity = (productId, newQuantity) => {
     if (newQuantity < 1) {
       removeFromCart(productId);
+      return;
+    }
+
+    const product = cart.find(item => item.id === productId);
+    if (product && newQuantity > product.stock) {
+      alert(`Solo hay ${product.stock} unidades disponibles de "${product.title}"`);
       return;
     }
     
@@ -305,7 +343,6 @@ export const AppProvider = ({ children }) => {
     setCart([]);
   };
 
-  // Cálculos del carrito
   const calculateCartTotal = useCallback(() => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   }, [cart]);
@@ -330,7 +367,6 @@ export const AppProvider = ({ children }) => {
     return cart.reduce((count, item) => count + item.quantity, 0);
   }, [cart]);
 
-  // ===== FUNCIONES DE PEDIDOS =====
   const fetchOrders = useCallback(async () => {
     if (!isAdmin) return;
     
@@ -366,13 +402,12 @@ export const AppProvider = ({ children }) => {
     }
   }, [isAdmin, fetchOrders]);
 
-  // ===== FUNCIÓN PARA GUARDAR DATOS DEL CHECKOUT =====
   const saveCheckoutData = useCallback((data) => {
     console.log("💾 Guardando datos del checkout:", data);
     setCheckoutData(data);
+    sessionStorage.setItem('pendingCheckout', JSON.stringify(data));
   }, []);
 
-  // ===== FUNCIONES DE PAGO =====
   const processPayment = useCallback(async (paymentDetails) => {
     try {
       const response = await fetch(`${API_URL}/ordenes`, {
@@ -409,78 +444,164 @@ export const AppProvider = ({ children }) => {
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart]);
 
+  // ✅ CREATE PAYPAL ORDER
   const createPayPalOrder = useCallback(async (orderData) => {
     try {
+      const payload = {
+        cart: cart,
+        subtotal: calculateCartTotal(),
+        tax: calculateCartTax(),
+        shipping: calculateCartShipping(),
+        total: calculateCartGrandTotal(),
+        shippingAddress: orderData.shippingAddress,
+        usuario_id: currentUser?.id
+      };
+
+      console.log("📤 Enviando a create-order:", payload);
+
       const response = await fetch(`${API_URL}/paypal/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cart: cart,
-          subtotal: calculateCartTotal(),
-          tax: calculateCartTax(),
-          shipping: calculateCartShipping(),
-          total: calculateCartGrandTotal(),
-          shippingAddress: orderData.shippingAddress,
-          usuario_id: currentUser?.id
-        })
+        body: JSON.stringify(payload)
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ El servidor no devolvió JSON:', text.substring(0, 500));
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}. Verifica que el backend esté corriendo.`);
+      }
+
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Error ${response.status}: ${data.message || 'Error desconocido'}`);
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      console.log("✅ Orden de PayPal creada:", data);
       return data;
+
     } catch (error) {
-      console.error('Error creating PayPal order:', error);
+      console.error('❌ Error creating PayPal order:', error);
       throw error;
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
 
-  // ===== CAPTURE PAYPAL ORDER =====
+  // ✅ CAPTURE PAYPAL ORDER - CORREGIDO
   const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
     try {
-      const datosParaEnviar = {
-        orderId,
-        paymentDetails,
-        usuario_id: currentUser?.id,
-        cart: checkoutData?.cart || cart,
-        shippingAddress: checkoutData?.shippingAddress || paymentDetails?.shippingAddress || {},
-        total: checkoutData?.total || calculateCartGrandTotal(),
-        subtotal: checkoutData?.subtotal || calculateCartTotal(),
-        tax: checkoutData?.tax || calculateCartTax(),
-        shipping: checkoutData?.shipping || calculateCartShipping()
+      let checkoutInfo = checkoutData;
+      
+      if (!checkoutInfo || !checkoutInfo.cart || checkoutInfo.cart.length === 0) {
+        const savedCheckout = sessionStorage.getItem('pendingCheckout');
+        if (savedCheckout) {
+          checkoutInfo = JSON.parse(savedCheckout);
+          console.log("📦 Recuperando de sessionStorage:", checkoutInfo);
+        }
+      }
+
+      if (!checkoutInfo || !checkoutInfo.cart || checkoutInfo.cart.length === 0) {
+        checkoutInfo = {
+          cart: cart,
+          subtotal: calculateCartTotal(),
+          tax: calculateCartTax(),
+          shipping: calculateCartShipping(),
+          total: calculateCartGrandTotal()
+        };
+      }
+
+      // Obtener userId
+      let userId = currentUser?.id;
+      if (!userId) {
+        const savedUser = localStorage.getItem('retrosound_user');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          userId = user.id;
+        }
+      }
+
+      if (!userId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      const payload = {
+        orderId: orderId,
+        usuario_id: userId,
+        cart: checkoutInfo.cart,
+        total: checkoutInfo.total,
+        subtotal: checkoutInfo.subtotal,
+        tax: checkoutInfo.tax,
+        shipping: checkoutInfo.shipping
       };
 
-      console.log("=".repeat(50));
-      console.log("🔥 ENVIANDO A CAPTURE-ORDER:");
-      console.log("📦 Cart items:", datosParaEnviar.cart?.length || 0);
-      console.log("=".repeat(50));
+      console.log("📤 Enviando a capture-order:", payload);
 
       const response = await fetch(`${API_URL}/paypal/capture-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datosParaEnviar)
+        body: JSON.stringify(payload)
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ El servidor no devolvió JSON:', text.substring(0, 500));
+        throw new Error('Error de comunicación con el servidor');
+      }
+
       const data = await response.json();
-      console.log("✅ Respuesta del backend:", data);
-      
-      if (data.ok) {
-        clearCart();
-        setCheckoutData(null);
-        await refreshProducts(); // ACTUALIZAR STOCK EN FRONTEND
-        return data;
-      } else {
+
+      if (!response.ok) {
+        throw new Error(data.error || `Error ${response.status}`);
+      }
+
+      if (!data.ok) {
         throw new Error(data.error || 'Error al procesar el pago');
       }
+
+      console.log("✅ Pago capturado exitosamente:", data);
+
+      clearCart();
+      setCheckoutData(null);
+      sessionStorage.removeItem('pendingCheckout');
+      
+      // ✅ FORZAR REFRESH DE PRODUCTOS
+      await refreshProducts();
+      
+      // ✅ FORZAR RECARGA DE PÁGINA PARA ACTUALIZAR TODO
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
+      return data;
+
     } catch (error) {
       console.error('❌ Error en capturePayPalOrder:', error);
       throw error;
     }
   }, [currentUser, cart, checkoutData, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart, refreshProducts]);
 
-  // ===== RETURN DEL PROVIDER =====
+  const verifyProductStock = useCallback(async (productId) => {
+    try {
+      const response = await fetch(`${API_URL}/discos/${productId}`);
+      const data = await response.json();
+      if (data.ok && data.disco) {
+        return data.disco.stock;
+      }
+      return 0;
+    } catch (error) {
+      console.error("Error verificando stock:", error);
+      return 0;
+    }
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
-        // Estados
         isLoggedIn,
         currentUser,
         cart,
@@ -489,44 +610,31 @@ export const AppProvider = ({ children }) => {
         loading,
         orders,
         checkoutData,
-        topDestacados, // NUEVO
-        
-        // Auth
+        topDestacados,
         login,
         logout,
         register,
-        
-        // Productos
         addProduct,
         updateProduct,
         deleteProduct,
         refreshProducts,
-        
-        // Carrito
         addToCart,
         removeFromCart,
         updateCartQuantity,
         clearCart,
-        
-        // Cálculos
         calculateCartTotal,
         calculateCartTax,
         calculateCartShipping,
         calculateCartGrandTotal,
         calculateCartCount,
-        
-        // Pedidos
         fetchOrders,
         updateOrderStatus,
-        
-        // Checkout
         saveCheckoutData,
-        fetchTopDestacados, // 👈 NUEVO
-        
-        // Pago
+        fetchTopDestacados,
         processPayment,
         createPayPalOrder,
-        capturePayPalOrder
+        capturePayPalOrder,
+        verifyProductStock
       }}
     >
       {children}
