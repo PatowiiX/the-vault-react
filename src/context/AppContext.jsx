@@ -1,4 +1,3 @@
-// src/context/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { discosService } from '../services/api';
 
@@ -16,6 +15,7 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [checkoutData, setCheckoutData] = useState(null);
+  const [topDestacados, setTopDestacados] = useState([]); // 👈 NUEVO
 
   // ===== EFECTOS =====
   useEffect(() => {
@@ -50,18 +50,46 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('retrosound_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // ===== FUNCIÓN PARA REFRESCAR PRODUCTOS =====
+  // ===== FUNCIÓN PARA REFRESCAR PRODUCTOS - MEJORADA =====
   const refreshProducts = useCallback(async () => {
     try {
       console.log("🔄 Refrescando productos desde backend...");
       const data = await discosService.getAll();
+      
+      // VERIFICAR que los datos tienen el campo 'top' correctamente mapeado
+      console.log("📊 Datos recibidos:", data.map(p => ({ 
+        id: p.id, 
+        title: p.title, 
+        top: p.top, 
+        featured: p.featured 
+      })));
+      
       setAdminProducts(data);
       console.log("✅ Productos actualizados:", data.length);
+      
+      // 👉 NUEVO: Disparar evento personalizado para que Home se entere
+      window.dispatchEvent(new Event('productsUpdated'));
+      
       return data;
     } catch (error) {
       console.error("❌ Error refrescando productos:", error);
     }
   }, []);
+
+  // ===== NUEVA FUNCIÓN PARA TOP DESTACADOS =====
+  const fetchTopDestacados = useCallback(async () => {
+    try {
+      console.log("🎵 Cargando top 5 destacados...");
+      // Esta función la puedes implementar después si quieres
+      // un endpoint específico para top 5
+      const destacados = adminProducts.filter(p => p.top === 1 || p.featured === true);
+      setTopDestacados(destacados.slice(0, 5));
+      return destacados.slice(0, 5);
+    } catch (error) {
+      console.error("❌ Error cargando top 5:", error);
+      return [];
+    }
+  }, [adminProducts]);
 
   // ===== FUNCIONES DE AUTENTICACIÓN =====
   const login = async (credentials) => {
@@ -222,6 +250,7 @@ export const AppProvider = ({ children }) => {
       
       if (data.ok) {
         setAdminProducts(prev => prev.filter(p => p.id !== id));
+        await refreshProducts(); // ASEGURAR REFRESH
         return { success: true };
       } else {
         return { success: false, message: data.error };
@@ -404,15 +433,14 @@ export const AppProvider = ({ children }) => {
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
 
-  // ===== CAPTURE PAYPAL ORDER - CORREGIDO =====
+  // ===== CAPTURE PAYPAL ORDER =====
   const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
     try {
-      // SIEMPRE usar checkoutData si existe, porque es el que guardamos ANTES de ir a PayPal
       const datosParaEnviar = {
         orderId,
         paymentDetails,
         usuario_id: currentUser?.id,
-        cart: checkoutData?.cart || cart, // Priorizar checkoutData
+        cart: checkoutData?.cart || cart,
         shippingAddress: checkoutData?.shippingAddress || paymentDetails?.shippingAddress || {},
         total: checkoutData?.total || calculateCartGrandTotal(),
         subtotal: checkoutData?.subtotal || calculateCartTotal(),
@@ -423,7 +451,6 @@ export const AppProvider = ({ children }) => {
       console.log("=".repeat(50));
       console.log("🔥 ENVIANDO A CAPTURE-ORDER:");
       console.log("📦 Cart items:", datosParaEnviar.cart?.length || 0);
-      console.log("📦 Cart detalle:", JSON.stringify(datosParaEnviar.cart, null, 2));
       console.log("=".repeat(50));
 
       const response = await fetch(`${API_URL}/paypal/capture-order`, {
@@ -438,6 +465,7 @@ export const AppProvider = ({ children }) => {
       if (data.ok) {
         clearCart();
         setCheckoutData(null);
+        await refreshProducts(); // ACTUALIZAR STOCK EN FRONTEND
         return data;
       } else {
         throw new Error(data.error || 'Error al procesar el pago');
@@ -446,7 +474,7 @@ export const AppProvider = ({ children }) => {
       console.error('❌ Error en capturePayPalOrder:', error);
       throw error;
     }
-  }, [currentUser, cart, checkoutData, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart]);
+  }, [currentUser, cart, checkoutData, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart, refreshProducts]);
 
   // ===== RETURN DEL PROVIDER =====
   return (
@@ -461,6 +489,7 @@ export const AppProvider = ({ children }) => {
         loading,
         orders,
         checkoutData,
+        topDestacados, // NUEVO
         
         // Auth
         login,
@@ -492,6 +521,7 @@ export const AppProvider = ({ children }) => {
         
         // Checkout
         saveCheckoutData,
+        fetchTopDestacados, // 👈 NUEVO
         
         // Pago
         processPayment,

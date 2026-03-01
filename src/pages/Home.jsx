@@ -1,4 +1,3 @@
-// src/pages/Home.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -18,6 +17,7 @@ function Home() {
   
   const [displayProducts, setDisplayProducts] = useState([]);
   const [lastAddedProduct, setLastAddedProduct] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0); // NUEVO: Para forzar recálculo
   
   const [formData, setFormData] = useState({
     nombre: '',
@@ -27,15 +27,40 @@ function Home() {
   const [isSending, setIsSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
 
+  // ============================================
+  // EFECTOS
+  // ============================================
+  
   // REFRESCAR PRODUCTOS AL CARGAR HOME
   useEffect(() => {
     refreshProducts();
   }, [refreshProducts]);
 
+  // Escuchar cambios en adminProducts
+  useEffect(() => {
+    console.log("📦 adminProducts cambió, actualizando top 5");
+    setRefreshKey(prev => prev + 1);
+  }, [adminProducts]);
+
+  // Escuchar evento personalizado de actualización
+  useEffect(() => {
+    const handleProductsUpdated = () => {
+      console.log("🔄 Productos actualizados vía evento - forzando recálculo");
+      setRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('productsUpdated', handleProductsUpdated);
+    
+    return () => {
+      window.removeEventListener('productsUpdated', handleProductsUpdated);
+    };
+  }, []);
+
   // ============================================
-  // TOP 5 DINÁMICOS - CORREGIDO
+  // TOP 5 DINÁMICOS - CORREGIDO AL FIN
   // ============================================
   const topProducts = useMemo(() => {
+    console.log("🎯 RECALCULANDO TOP 5 - refreshKey:", refreshKey);
     console.log("🎯 Productos desde BD:", adminProducts.map(p => ({ 
       id: p.id,
       title: p.title, 
@@ -43,7 +68,7 @@ function Home() {
       featured: p.featured 
     })));
     
-    // ✅ FILTRA POR top=1 O featured=true
+    // FILTRA POR top=1 O featured=true
     const destacados = adminProducts.filter(p => 
       p.top === 1 || p.featured === true
     );
@@ -64,7 +89,7 @@ function Home() {
     console.log("✅ TOP 5 final:", resultado.map(p => p.title));
     
     return resultado;
-  }, [adminProducts]);
+  }, [adminProducts, refreshKey]); //  refreshKey como dependencia
 
   useEffect(() => {
     setDisplayProducts(topProducts);
@@ -174,7 +199,7 @@ function Home() {
             
             <div className="row row-cols-2 row-cols-lg-5 g-3" id="top-discos-container">
               {displayProducts.map((product, index) => (
-                <div key={product.id} className="col">
+                <div key={`${product.id}-${refreshKey}`} className="col"> {/* 👈 KEY con refreshKey */}
                   <Link to={`/album/${product.id}`} className="text-decoration-none">
                     <div className={`format-item-card clickable-card ${lastAddedProduct === product.id ? 'item-added' : ''} ${product.stock === 0 ? 'out-of-stock' : ''}`}
                          style={{ minHeight: '320px' }}>
@@ -212,7 +237,7 @@ function Home() {
                         )}
                         
                         {/* ✅ BADGE DE DESTACADO */}
-                        {(product.top === 1 || product.featured === true) && index === 0 && (
+                        {(product.top === 1 || product.featured === true) && (
                           <span className="badge bg-warning text-dark position-absolute top-0 start-0 m-2" style={{ fontSize: '0.7rem' }}>
                             ⭐ DESTACADO
                           </span>
