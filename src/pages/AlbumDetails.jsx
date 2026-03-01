@@ -1,4 +1,3 @@
-// src/pages/AlbumDetails.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -6,25 +5,17 @@ import { useApp } from '../context/AppContext';
 const AlbumDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp(); // 👈 AGREGAR refreshProducts
+  const { adminProducts, addToCart, isLoggedIn } = useApp(); // QUITAR refreshProducts
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 👇 REFRESCAR PRODUCTOS AL CARGAR LA PÁGINA
+  // 👇 CORREGIDO: Solo buscar el álbum, sin refrescar
   useEffect(() => {
-    const loadAlbum = async () => {
-      setLoading(true);
-      // Forzar recarga de productos desde el backend
-      await refreshProducts();
-      
-      // Buscar el álbum actualizado
-      const foundAlbum = adminProducts.find(p => p.id === parseInt(id));
-      setAlbum(foundAlbum);
-      setLoading(false);
-    };
-    
-    loadAlbum();
-  }, [id, adminProducts, refreshProducts]); // 👈 DEPENDENCIAS
+    setLoading(true);
+    const foundAlbum = adminProducts.find(p => p.id === parseInt(id));
+    setAlbum(foundAlbum);
+    setLoading(false);
+  }, [id, adminProducts]); // SOLO DEPENDENCIAS NECESARIAS
 
   const handleAddToCart = () => {
     if (!isLoggedIn) {
@@ -32,37 +23,34 @@ const AlbumDetails = () => {
       return;
     }
     
-    if (album.stock === 0) {
-      alert(`😔 "${album.title}" está agotado`);
+    if (album.stock <= 0) { // CAMBIADO a <= 0
+      alert(`❌ "${album.title}" está agotado`);
       return;
     }
     
     const result = addToCart(album);
-    if (result.success) {
+    if (result?.success) {
       alert(`✅ ${album.title} agregado al carrito`);
     }
   };
 
   const getButtonClass = () => {
     if (!album) return '';
-    
-    if (album.stock === 0) return 'btn-adaptivo btn-sin-stock';
+    if (album.stock <= 0) return 'btn-adaptivo btn-sin-stock'; // CAMBIADO
     if (!isLoggedIn) return 'btn-adaptivo btn-sin-sesion';
     return 'btn-adaptivo btn-con-sesion';
   };
 
   const getButtonIcon = () => {
     if (!album) return null;
-    
-    if (album.stock === 0) return <i className="bi bi-x-circle"></i>;
+    if (album.stock <= 0) return <i className="bi bi-x-circle"></i>; // CAMBIADO
     if (!isLoggedIn) return <i className="bi bi-lock"></i>;
     return <i className="bi bi-cart-plus"></i>;
   };
 
   const getButtonText = () => {
     if (!album) return '';
-    
-    if (album.stock === 0) return 'AGOTADO';
+    if (album.stock <= 0) return 'AGOTADO'; // CAMBIADO
     if (!isLoggedIn) return 'INICIAR SESIÓN PARA COMPRAR';
     return 'AGREGAR AL CARRITO';
   };
@@ -120,7 +108,6 @@ const AlbumDetails = () => {
                 }}
               />
               
-              {/* BADGES */}
               <div className="mt-3 d-flex flex-wrap gap-2">
                 {album.heritage && (
                   <span className="badge bg-gold">
@@ -145,11 +132,17 @@ const AlbumDetails = () => {
                   {album.year}
                 </span>
 
-                {/* BADGE DE STOCK BAJO */}
                 {album.stock > 0 && album.stock < 5 && (
                   <span className="badge bg-warning text-dark">
                     <i className="bi bi-exclamation-triangle me-1"></i>
                     ¡Últimas {album.stock} unidades!
+                  </span>
+                )}
+                
+                {album.stock <= 0 && (
+                  <span className="badge bg-danger">
+                    <i className="bi bi-x-circle me-1"></i>
+                    AGOTADO
                   </span>
                 )}
               </div>
@@ -165,7 +158,6 @@ const AlbumDetails = () => {
                 {album.artist}
               </h3>
               
-              {/* INFO BÁSICA */}
               <div className="row mb-4">
                 <div className="col-6">
                   <p className="mb-2">
@@ -188,8 +180,8 @@ const AlbumDetails = () => {
                   </p>
                   <p className="mb-2">
                     <strong><i className="bi bi-box-seam me-2"></i>Stock:</strong> 
-                    <span className={`ms-2 ${album.stock === 0 ? 'text-danger fw-bold' : album.stock < 5 ? 'text-warning' : 'text-success'}`}>
-                      {album.stock === 0 ? '❌ AGOTADO' : `${album.stock} unidades`}
+                    <span className={`ms-2 ${album.stock <= 0 ? 'text-danger fw-bold' : album.stock < 5 ? 'text-warning' : 'text-success'}`}>
+                      {album.stock <= 0 ? '❌ AGOTADO' : `${album.stock} unidades`}
                     </span>
                   </p>
                   {album.heritage && album.edition && (
@@ -201,7 +193,6 @@ const AlbumDetails = () => {
                 </div>
               </div>
 
-              {/* DESCRIPCIÓN */}
               <div className="mb-4">
                 <h5 className="text-pink">
                   <i className="bi bi-file-text me-2"></i>
@@ -210,7 +201,6 @@ const AlbumDetails = () => {
                 <p className="text-light">{album.description || 'Sin descripción disponible.'}</p>
               </div>
 
-              {/* DETALLES TÉCNICOS */}
               <div className="row bg-dark-secondary p-3 rounded mb-4">
                 <div className="col-4 text-center">
                   <i className="bi bi-music-note-list fs-4 text-pink"></i>
@@ -232,18 +222,17 @@ const AlbumDetails = () => {
                 </div>
               </div>
 
-              {/* BOTONES DE ACCIÓN */}
               <div className="d-flex flex-column gap-3 mt-auto">
                 <button 
                   className={getButtonClass()}
                   onClick={handleAddToCart}
-                  disabled={album.stock === 0}
+                  disabled={album.stock <= 0}
                   style={{
                     padding: '15px',
                     fontSize: '1.2rem',
                     fontWeight: 'bold',
-                    opacity: album.stock === 0 ? 0.6 : 1,
-                    cursor: album.stock === 0 ? 'not-allowed' : 'pointer'
+                    opacity: album.stock <= 0 ? 0.6 : 1,
+                    cursor: album.stock <= 0 ? 'not-allowed' : 'pointer'
                   }}
                 >
                   <span className="d-flex align-items-center justify-content-center">

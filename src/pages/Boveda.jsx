@@ -1,4 +1,3 @@
-// src/pages/Boveda.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -28,15 +27,17 @@ const Boveda = () => {
     if (activeFilter === 'featured') {
       filtered = filtered.filter(p => p.featured);
     } else if (activeFilter === 'lowstock') {
-      filtered = filtered.filter(p => p.stock < 10);
+      filtered = filtered.filter(p => p.stock > 0 && p.stock < 10); // 👈 SOLO CON STOCK
     } else if (activeFilter === 'vinyl') {
-      filtered = filtered.filter(p => p.format === 'Vinyl');
+      filtered = filtered.filter(p => p.format === 'Vinyl' && p.stock > 0);
     } else if (activeFilter === 'cd') {
-      filtered = filtered.filter(p => p.format === 'CD');
+      filtered = filtered.filter(p => p.format === 'CD' && p.stock > 0);
     } else if (activeFilter === 'cassette') {
-      filtered = filtered.filter(p => p.format === 'Cassette');
+      filtered = filtered.filter(p => p.format === 'Cassette' && p.stock > 0);
     } else if (activeFilter === 'heritage') {
-      filtered = filtered.filter(p => p.heritage);
+      filtered = filtered.filter(p => p.heritage && p.stock > 0);
+    } else if (activeFilter === 'outofstock') {
+      filtered = filtered.filter(p => p.stock === 0); // 👈 NUEVO FILTRO: Agotados
     }
     
     // FILTRO POR GÉNERO
@@ -60,6 +61,9 @@ const Boveda = () => {
     setFilteredProducts(filtered);
   }, [adminProducts, searchTerm, activeFilter, genreFilter, sortBy]);
 
+  // ============================================
+  // HANDLE ADD TO CART - MEJORADO
+  // ============================================
   const handleAddToCart = (e, product) => {
     e.preventDefault();
     e.stopPropagation();
@@ -69,21 +73,63 @@ const Boveda = () => {
       return;
     }
     
-    if (product.stock === 0) {
-      alert(`😔 "${product.title}" está agotado`);
+    // VERIFICACIÓN MEJORADA (usamos <= 0 por seguridad)
+    if (product.stock <= 0) {
+      alert(`❌ "${product.title}" está AGOTADO\n\nNo estará disponible hasta que el admin reponga stock.`);
+      return;
+    }
+    
+    // Verificar si hay al menos 1 unidad
+    if (product.stock < 1) {
+      alert(`❌ Stock insuficiente. Solo quedan ${product.stock} unidades.`);
       return;
     }
     
     const result = addToCart(product);
-    if (result.success) {
+    if (result?.success) {
       alert(`✅ ${product.title} agregado al carrito`);
+    } else {
+      alert(`❌ ${result?.message || 'No se pudo agregar al carrito'}`);
     }
   };
 
+  // ============================================
+  // GET BUTTON CLASS - MEJORADO
+  // ============================================
   const getButtonClass = (product) => {
-    if (product.stock === 0) return 'btn-adaptivo btn-sin-stock';
+    if (product.stock <= 0) return 'btn-adaptivo btn-sin-stock'; // 👈 CAMBIADO a <= 0
     if (!isLoggedIn) return 'btn-adaptivo btn-sin-sesion';
     return 'btn-adaptivo btn-con-sesion';
+  };
+
+  // ============================================
+  // GET BUTTON ICON - NUEVA FUNCIÓN
+  // ============================================
+  const getButtonIcon = (product) => {
+    if (product.stock <= 0) return <i className="bi bi-x-circle"></i>;
+    if (!isLoggedIn) return <i className="bi bi-lock"></i>;
+    return <i className="bi bi-cart-plus"></i>;
+  };
+
+  // ============================================
+  // GET STOCK DISPLAY - NUEVA FUNCIÓN
+  // ============================================
+  const getStockDisplay = (product) => {
+    if (product.stock <= 0) {
+      return <span style={{ color: '#ff4444', fontWeight: 'bold' }}>❌ AGOTADO</span>;
+    }
+    if (product.stock < 5) {
+      return (
+        <span style={{ color: '#ffaa00' }}>
+          ⚠️ ¡Últimas {product.stock}!
+        </span>
+      );
+    }
+    return (
+      <span style={{ color: '#4caf50' }}>
+        ✅ {product.stock} disponibles
+      </span>
+    );
   };
 
   const allGenres = [
@@ -121,20 +167,21 @@ const Boveda = () => {
             </div>
           </div>
           
-          {/* Filtro principal */}
+          {/* Filtro principal - MEJORADO */}
           <div className="col-md-3 mb-3">
             <select 
               className="form-select bg-dark text-white border-pink"
               value={activeFilter}
               onChange={(e) => setActiveFilter(e.target.value)}
             >
-              <option value="all">Todos los productos</option>
-              <option value="featured">Solo destacados</option>
-              <option value="heritage">Solo Heritage</option>
-              <option value="lowstock">Bajo stock (&lt;10)</option>
-              <option value="vinyl">Solo Vinyl</option>
-              <option value="cd">Solo CD</option>
-              <option value="cassette">Solo Cassette</option>
+              <option value="all">📀 Todos los productos</option>
+              <option value="featured">⭐ Solo destacados</option>
+              <option value="heritage">💎 Solo Heritage</option>
+              <option value="lowstock">⚠️ Bajo stock (&lt;10)</option>
+              <option value="outofstock">❌ Agotados</option> {/* 👈 NUEVO */}
+              <option value="vinyl">🎵 Solo Vinyl</option>
+              <option value="cd">💿 Solo CD</option>
+              <option value="cassette">📼 Solo Cassette</option>
             </select>
           </div>
           
@@ -145,7 +192,7 @@ const Boveda = () => {
               value={genreFilter}
               onChange={(e) => setGenreFilter(e.target.value)}
             >
-              <option value="all">Todos los géneros</option>
+              <option value="all">🎵 Todos los géneros</option>
               {allGenres.map(genre => (
                 <option key={genre} value={genre}>{genre}</option>
               ))}
@@ -159,12 +206,12 @@ const Boveda = () => {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
             >
-              <option value="default">Ordenar por...</option>
-              <option value="name">Nombre (A-Z)</option>
-              <option value="price-low">Precio (Menor a Mayor)</option>
-              <option value="price-high">Precio (Mayor a Menor)</option>
-              <option value="year">Año (Nuevos primero)</option>
-              <option value="stock">Stock (Mayor primero)</option>
+              <option value="default">📊 Ordenar por...</option>
+              <option value="name">📝 Nombre (A-Z)</option>
+              <option value="price-low">💰 Precio (Menor a Mayor)</option>
+              <option value="price-high">💰 Precio (Mayor a Menor)</option>
+              <option value="year">📅 Año (Nuevos primero)</option>
+              <option value="stock">📦 Stock (Mayor primero)</option>
             </select>
           </div>
         </div>
@@ -201,13 +248,23 @@ const Boveda = () => {
               Búsqueda: "{searchTerm}" ({filteredProducts.length} resultados)
             </p>
           )}
+          
+          {/* NUEVO: Contador de stock */}
+          <div className="d-flex gap-3 mt-2">
+            <small className="text-success">
+              ✅ Disponibles: {adminProducts.filter(p => p.stock > 0).length}
+            </small>
+            <small className="text-danger">
+              ❌ Agotados: {adminProducts.filter(p => p.stock <= 0).length}
+            </small>
+          </div>
         </div>
 
         <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
           {filteredProducts.map(product => (
             <div key={product.id} className="col">
               <Link to={`/album/${product.id}`} className="text-decoration-none">
-                <div className={`format-item-card clickable-card ${product.heritage ? 'heritage-card' : ''} ${product.stock === 0 ? 'out-of-stock' : ''}`}>
+                <div className={`format-item-card clickable-card ${product.heritage ? 'heritage-card' : ''} ${product.stock <= 0 ? 'out-of-stock' : ''}`}>
                   <div 
                     className="format-item-image"
                     style={{
@@ -239,9 +296,15 @@ const Boveda = () => {
                       {product.year}
                     </span>
 
-                    {product.stock === 0 && (
+                    {product.stock <= 0 && (
                       <span className="badge bg-danger position-absolute top-0 end-0 m-2">
-                        AGOTADO
+                        ❌ AGOTADO
+                      </span>
+                    )}
+                    
+                    {product.stock > 0 && product.stock < 5 && (
+                      <span className="badge bg-warning text-dark position-absolute top-0 end-0 m-2">
+                        ⚠️ ÚLTIMAS {product.stock}
                       </span>
                     )}
                   </div>
@@ -271,31 +334,18 @@ const Boveda = () => {
                           ${product.price?.toFixed(2)}
                         </span>
                         <small className="d-block text-light">
-                          {product.stock === 0 ? (
-                            <span style={{ color: '#ff4444', fontWeight: 'bold' }}>❌ NO DISPONIBLE</span>
-                          ) : (
-                            <>
-                              Stock: <span className={product.stock < 5 ? 'text-warning' : 'text-success'}>
-                                {product.stock} unidades
-                              </span>
-                            </>
-                          )}
+                          {getStockDisplay(product)} {/* USAMOS LA NUEVA FUNCIÓN */}
                         </small>
                       </div>
                       
                       <button 
                         className={getButtonClass(product)}
                         onClick={(e) => handleAddToCart(e, product)}
-                        disabled={product.stock === 0}
-                        style={product.stock === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        disabled={product.stock <= 0} 
+                        style={product.stock <= 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        title={product.stock <= 0 ? 'Producto agotado' : 'Agregar al carrito'}
                       >
-                        {product.stock === 0 ? (
-                          <i className="bi bi-x-circle"></i>
-                        ) : !isLoggedIn ? (
-                          <i className="bi bi-lock"></i>
-                        ) : (
-                          <i className="bi bi-cart-plus"></i>
-                        )}
+                        {getButtonIcon(product)} {/* USAMOS LA NUEVA FUNCIÓN ACA */}
                       </button>
                     </div>
                   </div>
@@ -333,4 +383,4 @@ const Boveda = () => {
   );
 };
 
-export default Boveda; //SI
+export default Boveda;

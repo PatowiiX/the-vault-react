@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const fetch = require('node-fetch');
+const db = require("../db"); //  AGREGAR ESTO
 
 // Configuración de URL según el modo (Sandbox o Live)
 const PAYPAL_API = process.env.PAYPAL_MODE === 'live' 
@@ -29,11 +30,33 @@ async function getPayPalAccessToken() {
 }
 
 // ==========================================
-// RUTA 1: Crear orden en PayPal
+// RUTA 1: Crear orden en PayPal (CON VERIFICACIÓN DE STOCK)
 // ==========================================
 router.post("/create-order", async (req, res) => {
   try {
     const { cart, subtotal, tax, shipping, total } = req.body;
+
+    // VERIFICAR STOCK ANTES DE CREAR ORDEN PAYPAL
+    for (const item of cart) {
+      const [rows] = await db.promise().query(
+        "SELECT stock FROM discos WHERE id = ?",
+        [item.id]
+      );
+      
+      if (rows.length === 0) {
+        return res.status(400).json({ 
+          error: `Producto "${item.title}" no encontrado` 
+        });
+      }
+      
+      if (rows[0].stock < item.quantity) {
+        return res.status(400).json({ 
+          error: `Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}` 
+        });
+      }
+    }
+
+    console.log("Stock verificado, creando orden PayPal...");
 
     const accessToken = await getPayPalAccessToken();
 
@@ -104,8 +127,30 @@ router.post("/capture-order", async (req, res) => {
   
   const { orderId, usuario_id, cart, total, subtotal, tax, shipping } = req.body;
 
+  //  INICIAR CONEXIÓN PARA TRANSACCIÓN
+  const connection = await db.promise().getConnection();
+  
   try {
-    // 1. Obtener token y capturar en PayPal
+    // INICIAR TRANSACCIÓN
+    await connection.beginTransaction();
+
+    // 1. VERIFICAR STOCK NUEVAMENTE (por si acaso)
+    for (const item of cart) {
+      const [rows] = await connection.query(
+        "SELECT id, titulo, stock FROM discos WHERE id = ? FOR UPDATE",
+        [item.id]
+      );
+      
+      if (rows.length === 0) {
+        throw new Error(`Producto "${item.title}" no encontrado`);
+      }
+      
+      if (rows[0].stock < item.quantity) {
+        throw new Error(`Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}`);
+      }
+    }
+
+    // 2. Obtener token y capturar en PayPal
     const accessToken = await getPayPalAccessToken();
     const response = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`, {
       method: 'POST',
@@ -117,13 +162,14 @@ router.post("/capture-order", async (req, res) => {
 
     const paypalData = await response.json();
 
-    // 2. VALIDACIÓN: Verificar si el pago fue exitoso
-    // Si PayPal ya lo capturó o falla, status no será COMPLETED
+    // 3. VALIDACIÓN: Verificar si el pago fue exitoso
     if (paypalData.status !== 'COMPLETED') {
       console.error("⚠️ PayPal respondió con estado:", paypalData.status);
       
-      // Manejo específico si ya fue capturado (para no perder la orden)
-      if (paypalData.name === 'UNPROCESSABLE_ENTITY' && paypalData.details[0].issue === 'ORDER_ALREADY_CAPTURED') {
+      await connection.rollback();
+      connection.release();
+      
+      if (paypalData.name === 'UNPROCESSABLE_ENTITY' && paypalData.details?.[0]?.issue === 'ORDER_ALREADY_CAPTURED') {
         return res.status(400).json({ 
           error: "Esta orden ya fue procesada anteriormente.", 
           detalles: paypalData 
@@ -133,45 +179,85 @@ router.post("/capture-order", async (req, res) => {
       return res.status(400).json({ error: "No se pudo completar el pago en PayPal", detalles: paypalData });
     }
 
-    console.log("💰 PayPal: Pago COMPLETED. Procediendo a actualizar Base de Datos...");
+    console.log("💰 PayPal: Pago COMPLETED. Actualizando stock...");
 
-    // 3. LLAMAR A TU API DE PEDIDOS (Donde está el descuento de stock)
-    // Usamos la URL absoluta de tu servidor local
-    const ordenesResponse = await fetch('http://localhost:3001/api/ordenes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        usuario_id: usuario_id,
-        items: cart,
-        subtotal: subtotal,
-        shipping: shipping,
-        tax: tax,
-        total: total
-      })
-    });
-
-    const ordenData = await ordenesResponse.json();
-
-    // 4. RESPUESTA FINAL AL FRONTEND
-    if (ordenData.ok) {
-      console.log("✅ Proceso terminado con éxito: Stock actualizado y orden guardada.");
-      res.json({ 
-        ok: true, 
-        orden_id: ordenData.orden_id,
-        tracking_number: ordenData.tracking_number,
-        message: "Pago y registro exitoso"
-      });
-    } else {
-      console.error("❌ Error en registro de BD:", ordenData.error);
-      res.status(500).json({ 
-        error: "El pago se cobró pero hubo un error al actualizar el inventario. Contacte a soporte.",
-        detalles: ordenData.error 
-      });
+    // 4. ACTUALIZAR STOCK DIRECTAMENTE (más seguro que llamar a otra API)
+    for (const item of cart) {
+      const [rows] = await connection.query(
+        "SELECT stock FROM discos WHERE id = ? FOR UPDATE",
+        [item.id]
+      );
+      
+      const stockAnterior = rows[0].stock;
+      const stockNuevo = stockAnterior - item.quantity;
+      
+      await connection.query(
+        "UPDATE discos SET stock = ? WHERE id = ?",
+        [stockNuevo, item.id]
+      );
+      
+      // Registrar en stock_history
+      await connection.query(
+        `INSERT INTO stock_history (disco_id, cambio, stock_anterior, stock_nuevo, motivo) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [item.id, -item.quantity, stockAnterior, stockNuevo, 'paypal_compra']
+      );
+      
+      console.log(`📦 Stock actualizado: ${item.title} (${stockAnterior} → ${stockNuevo})`);
     }
 
+    // 5. CREAR ORDEN EN BASE DE DATOS
+    const trackingNumber = `TRK-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const estimatedDelivery = new Date();
+    estimatedDelivery.setDate(estimatedDelivery.getDate() + 5);
+
+    const [ordenResult] = await connection.query(
+      `INSERT INTO ordenes 
+       (usuario_id, total, estado, orden_items, shipping_cost, tax_amount, subtotal, tracking_number, estimated_delivery) 
+       VALUES (?, ?, 'pagado', ?, ?, ?, ?, ?, ?)`,
+      [
+        usuario_id, 
+        total, 
+        JSON.stringify(cart), 
+        shipping || 0, 
+        tax || 0, 
+        subtotal || 0, 
+        trackingNumber, 
+        estimatedDelivery
+      ]
+    );
+
+    const ordenId = ordenResult.insertId;
+
+    // 6. LIMPIAR CARRITO DEL USUARIO
+    if (usuario_id) {
+      await connection.query("DELETE FROM carrito WHERE usuario_id = ?", [usuario_id]);
+    }
+
+    // 7. CONFIRMAR TRANSACCIÓN
+    await connection.commit();
+    connection.release();
+
+    console.log(`✅ Orden #${ordenId} creada con éxito. Tracking: ${trackingNumber}`);
+
+    // 8. RESPUESTA FINAL AL FRONTEND
+    res.json({ 
+      ok: true, 
+      orden_id: ordenId,
+      tracking_number: trackingNumber,
+      message: "Pago procesado, stock actualizado y orden registrada"
+    });
+
   } catch (error) {
+    // SI ALGO FALLA, REVERTIR TODO
+    await connection.rollback();
+    connection.release();
+    
     console.error('❌ Error crítico en /capture-order:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message || "Error al procesar el pago",
+      detalles: "La transacción ha sido revertida. No se ha cobrado ni descontado stock."
+    });
   }
 });
 
