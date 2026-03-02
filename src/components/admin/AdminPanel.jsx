@@ -280,21 +280,51 @@ const AdminPanel = () => {
                     <td className="text-info fw-bold">
                       ${parseFloat(product.price || product.precio || 0).toFixed(2)}
                     </td>
+                    
+                    {/* UN RETOQUE POR ACA*/}
                     <td>
-                      <span className={`badge ${
-                        (product.stock || 0) === 0 ? 'bg-danger' :
-                        (product.stock || 0) < 5 ? 'bg-warning text-dark' : 'bg-success'
-                      }`}>
-                        {product.stock || 0} uds
-                      </span>
+                      <div className="d-flex align-items-center">
+                        <span className={`badge rounded-pill ${
+                          (product.stock || 0) === 0 ? 'bg-danger' :
+                          (product.stock || 0) < 5 ? 'bg-warning text-dark' : 'bg-success'
+                        }`} style={{ 
+                          fontSize: '0.95rem', 
+                          padding: '6px 12px',
+                          minWidth: '40px',
+                          fontWeight: '600'
+                        }}>
+                          {product.stock || 0}
+                        </span>
+                        {(product.stock || 0) === 0 && (
+                          <span className="ms-2 text-danger small">
+                            <i className="bi bi-exclamation-circle-fill me-1"></i>
+                            Agotado
+                          </span>
+                        )}
+                        {(product.stock || 0) > 0 && (product.stock || 0) < 5 && (
+                          <span className="ms-2 text-warning small">
+                            <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                            Bajo stock
+                          </span>
+                        )}
+                        {(product.stock || 0) >= 5 && (
+                          <span className="ms-2 text-success small">
+                            <i className="bi bi-check-circle-fill me-1"></i>
+                            Disponible
+                          </span>
+                        )}
+                      </div>
                     </td>
+                    
                     <td>
-                      {(product.featured || product.top === 1) && (
-                        <i className="bi bi-star-fill text-warning"></i>
-                      )}
-                      {(product.heritage || product.heritage === 1) && (
-                        <i className="bi bi-gem text-gold ms-1"></i>
-                      )}
+                      <div className="d-flex gap-1">
+                        {(product.featured || product.top === 1) && (
+                          <i className="bi bi-star-fill text-warning" title="Destacado"></i>
+                        )}
+                        {(product.heritage || product.heritage === 1) && (
+                          <i className="bi bi-gem text-gold ms-1" title="Heritage"></i>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <button 
