@@ -160,48 +160,66 @@ class GitAutomation:
         self.repo.git.push(remote_name, "--tags")
         print(f"Tags pusheados a {remote_name}")
 
-
-# ====================
-# PARSEO DE ARGUMENTOS
-# ====================
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("--commit", "-c", help="Mensaje del commit")
-parser.add_argument("--push", action="store_true", help="Hacer push después del commit")
-args = parser.parse_args()
-
-
-# ====================
-# EJEMPLO DE USO
-# ====================
+# ============
+#parseo de argumentos y ejecución
+# ============
 if __name__ == "__main__":
-    # Cambia la ruta si tu repositorio no está en el directorio actual
-    git_auto = GitAutomation(".")
+    import argparse
 
-    # 1. Ver estado
-    git_auto.get_status()
+    parser = argparse.ArgumentParser(description="Automatización de operaciones Git/GitHub")
+    parser.add_argument("--path", default=".", help="Ruta al repositorio local (por defecto directorio actual)")
+    
+    # Acciones principales
+    parser.add_argument("--status", action="store_true", help="Mostrar estado del repositorio")
+    parser.add_argument("--add", nargs="*", default=None, help="Archivos a agregar (si no se especifica, se agregan todos)")
+    parser.add_argument("--commit", "-m", help="Mensaje del commit")
+    parser.add_argument("--pull", action="store_true", help="Hacer pull antes de pushear")
+    parser.add_argument("--push", action="store_true", help="Hacer push después del commit")
+    parser.add_argument("--branch-create", help="Crear una nueva rama (y cambiar a ella)")
+    parser.add_argument("--branch-switch", help="Cambiar a una rama existente")
+    parser.add_argument("--merge", help="Fusionar una rama en la actual")
+    parser.add_argument("--tag", help="Nombre del tag a crear")
+    parser.add_argument("--tag-message", help="Mensaje para tag anotado (opcional)")
+    parser.add_argument("--push-tags", action="store_true", help="Pushear todos los tags al remoto")
+    
+    # Opciones adicionales
+    parser.add_argument("--remote", default="origin", help="Nombre del remoto (por defecto origin)")
+    parser.add_argument("--branch", help="Rama específica para pull/push (por defecto la actual)")
+    parser.add_argument("--set-upstream", action="store_true", help="Usar -u en el push")
 
-    # 2. Agregar archivos (todos)
-    git_auto.add_files()
+    args = parser.parse_args()
 
-    # 3. Hacer commit
-    git_auto.commit("Commit automatizado desde Python")
+    git_auto = GitAutomation(args.path)
 
-    # 4. Hacer pull antes de pushear (por buenas prácticas)
-    git_auto.pull()
+    # Ejecutar acciones en orden lógico
+    if args.status:
+        git_auto.get_status()
 
-    # 5. Pushear al remoto
-    git_auto.push()
+    if args.add is not None:  # None significa "todos", lista vacía también agrega todos
+        git_auto.add_files(args.add if args.add else None)
+    elif args.commit or args.push:  # si no se pidió add explícitamente pero hay commit/push, agregamos todo
+        git_auto.add_files()
 
-    # 6. Crear una nueva rama y cambiar a ella
-    git_auto.create_branch("feature/nueva-funcionalidad", checkout=True)
+    if args.commit:
+        git_auto.commit(args.commit)
 
-    # 7. Volver a la rama principal
-    git_auto.switch_branch("main")  # o "master"
+    if args.pull:
+        git_auto.pull(remote_name=args.remote, branch=args.branch)
 
-    # 8. Fusionar la rama creada (suponiendo que hiciste cambios)
-    git_auto.merge_branch("feature/nueva-funcionalidad", commit_message="Merge de nueva funcionalidad")
+    if args.push:
+        git_auto.push(remote_name=args.remote, branch=args.branch, set_upstream=args.set_upstream)
 
-    # 9. Crear y pushear un tag
-    git_auto.create_tag("v1.0.0", message="Versión estable 1.0.0")
-    git_auto.push_tags()
+    if args.branch_create:
+        git_auto.create_branch(args.branch_create, checkout=True)
+
+    if args.branch_switch:
+        git_auto.switch_branch(args.branch_switch)
+
+    if args.merge:
+        git_auto.merge_branch(args.merge)
+
+    if args.tag:
+        git_auto.create_tag(args.tag, message=args.tag_message)
+
+    if args.push_tags:
+        git_auto.push_tags(remote_name=args.remote)
