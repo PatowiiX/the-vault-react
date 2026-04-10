@@ -1775,3 +1775,150 @@ hr.border-secondary {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
 }
+/* ===== ESTILOS PARA PEDIDOS DEL USUARIO ===== */
+
+/* Tabla de pedidos */
+.orders-table {
+  width: 100%;
+  background: transparent;
+  color: white;
+}
+
+.orders-table thead th {
+  color: #00ff88;
+  border-bottom: 2px solid #00ff88;
+  padding: 12px;
+  font-family: 'Bungee', cursive;
+  font-size: 0.85rem;
+}
+
+.orders-table tbody td {
+  color: white;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  vertical-align: middle;
+}
+
+/* Badges de estado */
+.order-status {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.status-pagado {
+  background: rgba(0, 255, 136, 0.15);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.status-pendiente {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.status-enviado {
+  background: rgba(0, 123, 255, 0.15);
+  color: #007bff;
+  border: 1px solid rgba(0, 123, 255, 0.3);
+}
+
+.status-entregado {
+  background: rgba(0, 255, 136, 0.15);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.status-cancelado {
+  background: rgba(220, 53, 69, 0.15);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+/* Botones de la tabla */
+.orders-table .btn-outline-info {
+  background: transparent;
+  border: 1px solid #00ff88;
+  color: #00ff88;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.orders-table .btn-outline-info:hover {
+  background: #00ff88;
+  color: #0a0a0f;
+  transform: scale(1.05);
+}
+
+/* Detalles del pedido */
+.order-details {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.order-details h5 {
+  color: #00ff88;
+  font-family: 'Bungee', cursive;
+  font-size: 1rem;
+  margin-bottom: 15px;
+}
+
+.order-details hr {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.order-details .item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.order-details .item-title {
+  color: white;
+  font-weight: bold;
+}
+
+.order-details .item-artist {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.order-details .item-quantity {
+  color: #aaa;
+  font-size: 0.8rem;
+}
+
+.order-details .item-subtotal {
+  color: #00ff88;
+  font-weight: bold;
+}
+
+.order-details .totals {
+  text-align: right;
+  margin-top: 15px;
+}
+
+.order-details .totals p {
+  margin-bottom: 5px;
+  color: white;
+}
+
+.order-details .totals .grand-total {
+  color: #00ff88;
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}

@@ -9,7 +9,8 @@ const usuariosRoutes = require("./routes/usuarios");
 const contactoRoutes = require("./routes/contacto");
 const paypalRoutes = require("./routes/Paypal");
 const ordenesRoutes = require("./routes/ordenes");
-const passwordRoutes = require("./routes/password"); //  NUEVA RUTA PARA RECUPERACIÓN
+const passwordRoutes = require("./routes/password");
+const spotifyRoutes = require("./routes/Spotify"); // Spotify API
 
 const app = express();
 const PORT = 3001;
@@ -24,9 +25,10 @@ app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/contacto", contactoRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/ordenes", ordenesRoutes);
-app.use("/api/password", passwordRoutes); // AGREGADA LA RUTA DE RECUPERACIÓN
+app.use("/api/password", passwordRoutes);
+app.use("/api/spotify", spotifyRoutes); //  Ruta para Spotify
 
-// RUTA DE PRUEBA POR SI ACASO
+// RUTA DE PRUEBA
 app.get("/api", (req, res) => {
     res.json({ ok: true, mensaje: "Backend The Vault funcionando" });
 });

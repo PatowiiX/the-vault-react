@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import SpotifyPreview from '../components/SpotifyPreview';
 
 const API_URL = 'http://localhost:3001/api';
 
 const AlbumDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp();
+  const { adminProducts, addToCart, isLoggedIn, refreshProducts, isAdmin } = useApp();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -47,12 +48,8 @@ const AlbumDetails = () => {
       }
     };
 
-    // Verificar inmediatamente
     verificarStockEnTiempoReal();
-
-    // Verificar cada 2 segundos mientras la página esté abierta
     const intervalo = setInterval(verificarStockEnTiempoReal, 2000);
-
     return () => clearInterval(intervalo);
   }, [id]);
 
@@ -69,7 +66,6 @@ const AlbumDetails = () => {
     };
 
     window.addEventListener('productsUpdated', handleProductsUpdate);
-    
     return () => {
       window.removeEventListener('productsUpdated', handleProductsUpdate);
     };
@@ -89,7 +85,6 @@ const AlbumDetails = () => {
       return;
     }
     
-    // Usar stock en tiempo real para la verificación
     const stockActual = stockRealTime !== null ? stockRealTime : album?.stock;
     
     if (stockActual <= 0) {
@@ -106,7 +101,6 @@ const AlbumDetails = () => {
     
     if (result?.success) {
       await refreshProducts();
-      // Actualizar el album localmente
       setAlbum(prev => prev ? { ...prev, stock: prev.stock - 1 } : null);
       setLastUpdated(new Date());
     }
@@ -267,7 +261,6 @@ const AlbumDetails = () => {
                       {stockActual <= 0 ? '❌ AGOTADO' : `${stockActual} unidades`}
                     </span>
                   </p>
-                  {/* 👇 TIMESTAMP PARA VER CUÁNDO SE ACTUALIZÓ */}
                   <p className="mb-0">
                     <small className="text-muted">
                       Actualizado: {lastUpdated.toLocaleTimeString()}
@@ -290,26 +283,41 @@ const AlbumDetails = () => {
                 <p className="text-light">{album.description || 'Sin descripción disponible.'}</p>
               </div>
 
+              {/* ✅ SECCIÓN DE CANCIONES, DURACIÓN Y SKU - CORREGIDA */}
               <div className="row bg-dark-secondary p-3 rounded mb-4">
                 <div className="col-4 text-center">
                   <i className="bi bi-music-note-list fs-4 text-pink"></i>
                   <p className="mb-0 mt-2">
-                    {album.tracks || album.songs || 'N/A'} canciones
+                    {album.tracks || 'N/A'} canciones
                   </p>
                 </div>
                 <div className="col-4 text-center">
                   <i className="bi bi-clock fs-4 text-pink"></i>
                   <p className="mb-0 mt-2">
-                    {album.duration || album.time || 'N/A'}
+                    {album.duration || 'N/A'}
                   </p>
                 </div>
                 <div className="col-4 text-center">
                   <i className="bi bi-upc-scan fs-4 text-pink"></i>
                   <p className="mb-0 mt-2">
-                    {album.sku || album.code || 'N/A'}
+                    {/* ✅ SKU: visible SOLO para administradores */}
+                    {isAdmin ? (
+                      album.sku || 'N/A'
+                    ) : (
+                      <span className="text-muted" style={{ fontSize: '0.7rem' }}>
+                        <i className="bi bi-shield-lock me-1"></i>
+                        Solo admin
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
+
+              {/* Spotify Preview */}
+              <SpotifyPreview 
+                albumTitle={album.title} 
+                artistName={album.artist} 
+              />
 
               <div className="d-flex flex-column gap-3 mt-auto">
                 <button 

@@ -1,104 +1,106 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useApp } from './context/AppContext';
-import './styles/custom.css';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom'; // ← Solo Routes, no BrowserRouter
+import { AppProvider, useApp } from './context/AppContext';
 
-// Importar componentes
+// Layout Components
 import Header from './components/Header';
-import Home from './pages/Home';
-import Cart from './components/Cart';
-import AdminPanel from './components/admin/AdminPanel';
 
-// Importar nuevas páginas
+// Pages (están en ./pages/)
+import Home from './pages/Home';
+import Boveda from './pages/Boveda';
 import Heritage from './pages/Heritage';
 import Formatos from './pages/Formatos';
-import Boveda from './pages/Boveda';
 import AlbumDetails from './pages/AlbumDetails';
-import PagoExitoso from './pages/PagoExitoso';
-import ForgotPassword from './components/ForgotPassword'; 
-import ResetPassword from './components/ResetPassword'; 
+import MiCuenta from './pages/MiCuenta';
 
-// Componente de debug de rutas
-const RouteDebugger = () => {
-  const location = useLocation();
+// Components (los que SÍ existen en ./components/)
+import Cart from './components/Cart';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
+import SearchBar from './components/SearchBar';
+
+// Admin Pages
+import AdminPanel from './components/admin/AdminPanel';
+import OrdersPanel from './components/admin/OrdersPanel';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, adminOnly = false }) => {
+  const { isLoggedIn, isAdmin } = useApp();
   
-  useEffect(() => {
-    console.log('📍 RUTA ACTUAL:', location.pathname);
-    console.log('🔄 Componente a renderizar:', location.pathname);
-    window.scrollTo(0, 0);
-  }, [location]);
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
   
-  return null;
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
 };
 
-// Componentes de protección
-const RequireAuth = ({ children }) => {
-  const { isLoggedIn } = useApp();
-  return isLoggedIn ? children : <Navigate to="/" />;
-};
-
-const RequireAdmin = ({ children }) => {
-  const { isAdmin } = useApp();
-  return isAdmin ? children : <Navigate to="/" />;
-};
-
-// Componente de contenido principal
-function AppContent() {
+// Main App Component
+const AppRoutes = () => {
   return (
-    <>
-      <RouteDebugger />
-      <Header />
-      <main className="main-content">
-        <Routes>
-          {/* RUTA PRINCIPAL */}
-          <Route path="/" element={<Home />} />
-          
-          {/* PÁGINAS PÚBLICAS */}
-          <Route path="/heritage" element={<Heritage />} />
-          <Route path="/formatos" element={<Formatos />} />
-          <Route path="/boveda" element={<Boveda />} />
-          
-          {/* DETALLES DE ÁLBUM */}
-          <Route path="/album/:id" element={<AlbumDetails />} />
-          
-          {/* CARRITO */}
-          <Route path="/cart" element={<Cart />} />
-          
-          {/*  RUTAS DE RECUPERACIÓN DE CONTRASEÑA */}
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          
-          {/* RUTA PARA PAGO EXITOSO */}
-          <Route path="/pago-exitoso" element={<PagoExitoso />} />
-          
-          {/* ADMIN - PROTEGIDO */}
-          <Route 
-            path="/admin" 
-            element={
-              <RequireAuth>
-                <RequireAdmin>
-                  <AdminPanel />
-                </RequireAdmin>
-              </RequireAuth>
-            } 
-          />
-          
-          {/* RUTA POR DEFECTO - 404 */}
-          <Route path="*" element={
-            <div className="content-view fade-in">
-              <div className="container text-center py-5">
-                <h1 className="text-white bungee-font">404</h1>
-                <p className="text-white-50">Página no encontrada</p>
-                <a href="/" className="btn btn-neon-pink mt-3">
-                  Volver al inicio
-                </a>
-              </div>
-            </div>
-          } />
-        </Routes>
-      </main>
-    </>
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Home />} />
+      <Route path="/boveda" element={<Boveda />} />
+      <Route path="/heritage" element={<Heritage />} />
+      <Route path="/formatos" element={<Formatos />} />
+      <Route path="/album/:id" element={<AlbumDetails />} />
+      <Route path="/buscar" element={<SearchBar />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
+      
+      {/* Protected Routes (require login) */}
+      <Route path="/cart" element={
+        <ProtectedRoute>
+          <Cart />
+        </ProtectedRoute>
+      } />
+      <Route path="/mi-cuenta" element={
+        <ProtectedRoute>
+          <MiCuenta />
+        </ProtectedRoute>
+      } />
+      
+      {/* Admin Routes */}
+      <Route path="/admin" element={
+        <ProtectedRoute adminOnly={true}>
+          <AdminPanel />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/ordenes" element={
+        <ProtectedRoute adminOnly={true}>
+          <OrdersPanel />
+        </ProtectedRoute>
+      } />
+      
+      {/* 404 Page */}
+      <Route path="*" element={
+        <div className="content-view fade-in">
+          <div className="container text-center py-5">
+            <h1 className="text-white display-1">404</h1>
+            <p className="text-white-50">Página no encontrada</p>
+            <a href="/" className="btn btn-neon-pink mt-3">Volver al inicio</a>
+          </div>
+        </div>
+      } />
+    </Routes>
+  );
+};
+
+function App() {
+  return (
+    <AppProvider>
+      <div className="app">
+        <Header />
+        <main className="main-content">
+          <AppRoutes />
+        </main>
+      </div>
+    </AppProvider>
   );
 }
 
-export default AppContent;
+export default App;

@@ -20,11 +20,12 @@ const OrdersPanel = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     await updateOrderStatus(orderId, newStatus);
+    await fetchOrders(); // Recargar después de cambiar estado
   };
 
   const getStatusBadge = (estado) => {
     const badges = {
-      'pendiente': 'bg-warning',
+      'pendiente': 'bg-warning text-dark',
       'pagado': 'bg-success',
       'enviado': 'bg-info',
       'entregado': 'bg-primary',
@@ -49,6 +50,50 @@ const OrdersPanel = () => {
       style: 'currency',
       currency: 'MXN'
     }).format(amount || 0);
+  };
+
+  // 🔧 FUNCIÓN PARA NORMALIZAR LOS ITEMS (CORREGIDA)
+  const normalizeOrderItems = (order) => {
+    if (!order) return [];
+    
+    // Si ya tiene items y es array, normalizarlos
+    if (order.items && Array.isArray(order.items)) {
+      return order.items.map(item => ({
+        titulo: item.titulo || item.title || item.nombre || 'Producto',
+        artista: item.artista || item.artist || 'Artista',
+        formato: item.formato || item.format || 'Vinyl',
+        cantidad: item.cantidad || item.quantity || 1,
+        precio: parseFloat(item.precio_unitario || item.precio || item.price || 0),
+        imagen: item.imagen || item.image || null
+      }));
+    }
+    
+    // Si orden_items es string, parsearlo
+    if (order.orden_items) {
+      try {
+        let parsedItems;
+        if (typeof order.orden_items === 'string') {
+          parsedItems = JSON.parse(order.orden_items);
+        } else {
+          parsedItems = order.orden_items;
+        }
+        
+        if (Array.isArray(parsedItems)) {
+          return parsedItems.map(item => ({
+            titulo: item.titulo || item.title || item.nombre || 'Producto',
+            artista: item.artista || item.artist || 'Artista',
+            formato: item.formato || item.format || 'Vinyl',
+            cantidad: item.cantidad || item.quantity || 1,
+            precio: parseFloat(item.precio_unitario || item.precio || item.price || 0),
+            imagen: item.imagen || item.image || null
+          }));
+        }
+      } catch (e) {
+        console.error("Error parseando orden_items:", e);
+      }
+    }
+    
+    return [];
   };
 
   // Filtrar órdenes
@@ -166,64 +211,67 @@ const OrdersPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map(order => (
-                <tr key={order.id}>
-                  <td>
-                    <span className="badge bg-dark">#{order.id}</span>
-                  </td>
-                  <td>
-                    <small className="text-white">{formatDate(order.fecha || order.created_at)}</small>
-                  </td>
-                  <td>
-                    <strong className="text-white">
-                      {order.usuario_nombre || 'Visitante'}
-                    </strong>
-                  </td>
-                  <td>
-                    <span className="text-white">{order.email || 'N/A'}</span>
-                  </td>
-                  <td className="text-info fw-bold">
-                    {formatCurrency(order.total)}
-                  </td>
-                  <td>
-                    <span className={`badge ${getStatusBadge(order.estado)}`}>
-                      {order.estado?.toUpperCase() || 'PENDIENTE'}
-                    </span>
-                  </td>
-                  <td>
-                    <button 
-                      className="btn btn-sm btn-outline-info"
-                      onClick={() => setSelectedOrder(selectedOrder?.id === order.id ? null : order)}
-                    >
-                      <i className="bi bi-eye me-1"></i>
-                      Ver ({order.items?.length || 0})
-                    </button>
-                  </td>
-                  <td>
-                    <span className="text-white">{order.tracking_number || '—'}</span>
-                  </td>
-                  <td>
-                    <select 
-                      className="form-select form-select-sm bg-dark text-white border-pink"
-                      value={order.estado || 'pendiente'}
-                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      style={{ width: '130px' }}
-                    >
-                      <option value="pendiente">🟡 Pendiente</option>
-                      <option value="pagado">🟢 Pagado</option>
-                      <option value="enviado">🔵 Enviado</option>
-                      <option value="entregado">🟣 Entregado</option>
-                      <option value="cancelado">🔴 Cancelado</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
+              {filteredOrders.map(order => {
+                const itemsCount = normalizeOrderItems(order).length;
+                return (
+                  <tr key={order.id}>
+                    <td>
+                      <span className="badge bg-dark">#{order.id}</span>
+                    </td>
+                    <td>
+                      <small className="text-white">{formatDate(order.fecha || order.created_at)}</small>
+                    </td>
+                    <td>
+                      <strong className="text-white">
+                        {order.usuario_nombre || 'Visitante'}
+                      </strong>
+                    </td>
+                    <td>
+                      <span className="text-white">{order.email || 'N/A'}</span>
+                    </td>
+                    <td className="text-info fw-bold">
+                      {formatCurrency(order.total)}
+                    </td>
+                    <td>
+                      <span className={`badge ${getStatusBadge(order.estado)}`}>
+                        {order.estado?.toUpperCase() || 'PENDIENTE'}
+                      </span>
+                    </td>
+                    <td>
+                      <button 
+                        className="btn btn-sm btn-outline-info"
+                        onClick={() => setSelectedOrder(selectedOrder?.id === order.id ? null : order)}
+                      >
+                        <i className="bi bi-eye me-1"></i>
+                        Ver ({itemsCount})
+                      </button>
+                    </td>
+                    <td>
+                      <span className="text-white">{order.tracking_number || '—'}</span>
+                    </td>
+                    <td>
+                      <select 
+                        className="form-select form-select-sm bg-dark text-white border-pink"
+                        value={order.estado || 'pendiente'}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        style={{ width: '130px' }}
+                      >
+                        <option value="pendiente">🟡 Pendiente</option>
+                        <option value="pagado">🟢 Pagado</option>
+                        <option value="enviado">🔵 Enviado</option>
+                        <option value="entregado">🟣 Entregado</option>
+                        <option value="cancelado">🔴 Cancelado</option>
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
-          {/* Modal de detalles de items - CORREGIDO */}
+          {/* MODAL DE DETALLES DEL PEDIDO - CORREGIDO */}
           {selectedOrder && (
-            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1060 }}>
+            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
               <div className="modal-dialog modal-lg modal-dialog-centered">
                 <div className="modal-content bg-dark text-white border-pink">
                   <div className="modal-header border-secondary">
@@ -238,7 +286,8 @@ const OrdersPanel = () => {
                     ></button>
                   </div>
                   <div className="modal-body">
-                    <div className="row mb-3">
+                    {/* Información general */}
+                    <div className="row mb-4">
                       <div className="col-md-6">
                         <p className="text-white mb-1"><strong>Cliente:</strong> {selectedOrder.usuario_nombre || 'N/A'}</p>
                         <p className="text-white mb-1"><strong>Email:</strong> {selectedOrder.email || 'N/A'}</p>
@@ -256,70 +305,94 @@ const OrdersPanel = () => {
                       </div>
                     </div>
 
-                    <h6 className="text-pink mb-3">PRODUCTOS:</h6>
+                    <h6 className="text-pink mb-3">
+                      <i className="bi bi-cart me-2"></i>
+                      PRODUCTOS DEL PEDIDO:
+                    </h6>
                     
                     {/* ✅ TABLA DE PRODUCTOS CORREGIDA */}
-                    {selectedOrder.items && selectedOrder.items.length > 0 ? (
-                      <div className="table-responsive">
-                        <table className="table table-dark table-sm">
-                          <thead>
-                            <tr>
-                              <th>Producto</th>
-                              <th>Artista</th>
-                              <th>Cantidad</th>
-                              <th>Precio Unit.</th>
-                              <th>Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedOrder.items.map((item, idx) => {
-                              // Asegurar que los datos existan
-                              const titulo = item.titulo || item.title || 'Producto';
-                              const artista = item.artista || item.artist || 'Artista';
-                              const cantidad = item.cantidad || item.quantity || 1;
-                              const precio = parseFloat(item.precio_unitario || item.price || 0);
-                              const subtotal = precio * cantidad;
-                              
-                              return (
+                    {(() => {
+                      const items = normalizeOrderItems(selectedOrder);
+                      return items.length > 0 ? (
+                        <div className="table-responsive">
+                          <table className="table table-dark table-sm">
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid #00ff88' }}>
+                                <th>Producto</th>
+                                <th>Artista</th>
+                                <th>Formato</th>
+                                <th className="text-center">Cantidad</th>
+                                <th className="text-end">Precio Unit.</th>
+                                <th className="text-end">Subtotal</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((item, idx) => (
                                 <tr key={idx}>
-                                  <td className="text-white fw-bold">{titulo}</td>
-                                  <td className="text-white">{artista}</td>
-                                  <td className="text-white text-center">{cantidad}</td>
-                                  <td className="text-info">{formatCurrency(precio)}</td>
-                                  <td className="text-success fw-bold">{formatCurrency(subtotal)}</td>
+                                  <td>
+                                    <div className="d-flex align-items-center gap-2">
+                                      {item.imagen && (
+                                        <img 
+                                          src={item.imagen} 
+                                          alt={item.titulo}
+                                          style={{ width: '35px', height: '35px', objectFit: 'cover', borderRadius: '5px' }}
+                                        />
+                                      )}
+                                      <strong className="text-white">{item.titulo}</strong>
+                                    </div>
+                                  </td>
+                                  <td className="text-white-50">{item.artista}</td>
+                                  <td>
+                                    <span className={`badge ${
+                                      item.formato === 'Vinyl' ? 'bg-pink' : 
+                                      item.formato === 'CD' ? 'bg-info' : 'bg-gold'
+                                    }`}>
+                                      {item.formato}
+                                    </span>
+                                  </td>
+                                  <td className="text-center text-white">{item.cantidad}</td>
+                                  <td className="text-end text-info">{formatCurrency(item.precio)}</td>
+                                  <td className="text-end text-success fw-bold">
+                                    {formatCurrency(item.precio * item.cantidad)}
+                                  </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr>
-                              <td colSpan="4" className="text-end text-white"><strong>Subtotal:</strong></td>
-                              <td className="text-white">{formatCurrency(selectedOrder.subtotal || 0)}</td>
-                            </tr>
-                            <tr>
-                              <td colSpan="4" className="text-end text-white"><strong>Envío:</strong></td>
-                              <td className="text-white">{formatCurrency(selectedOrder.shipping_cost || 0)}</td>
-                            </tr>
-                            <tr>
-                              <td colSpan="4" className="text-end text-white"><strong>IVA:</strong></td>
-                              <td className="text-white">{formatCurrency(selectedOrder.tax_amount || 0)}</td>
-                            </tr>
-                            <tr>
-                              <td colSpan="4" className="text-end text-white"><strong>TOTAL:</strong></td>
-                              <td className="text-info fw-bold fs-5">{formatCurrency(selectedOrder.total || 0)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="alert alert-warning">
-                        <i className="bi bi-exclamation-triangle me-2"></i>
-                        No hay productos en esta orden
-                      </div>
-                    )}
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr>
+                                <td colSpan="5" className="text-end text-white-50"><strong>Subtotal:</strong></td>
+                                <td className="text-end text-white">{formatCurrency(selectedOrder.subtotal || 0)}</td>
+                              </tr>
+                              <tr>
+                                <td colSpan="5" className="text-end text-white-50"><strong>Envío:</strong></td>
+                                <td className="text-end text-white">{formatCurrency(selectedOrder.shipping_cost || 0)}</td>
+                              </tr>
+                              <tr>
+                                <td colSpan="5" className="text-end text-white-50"><strong>IVA (16%):</strong></td>
+                                <td className="text-end text-white">{formatCurrency(selectedOrder.tax_amount || 0)}</td>
+                              </tr>
+                              <tr style={{ borderTop: '2px solid #00ff88' }}>
+                                <td colSpan="5" className="text-end text-white fw-bold fs-5"><strong>TOTAL:</strong></td>
+                                <td className="text-end text-success fw-bold fs-5">{formatCurrency(selectedOrder.total || 0)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="alert alert-warning">
+                          <i className="bi bi-exclamation-triangle me-2"></i>
+                          No se pudieron cargar los productos de esta orden.
+                          <br />
+                          <small className="text-white-50">
+                            Datos crudos: {JSON.stringify(selectedOrder.orden_items)?.substring(0, 100)}...
+                          </small>
+                        </div>
+                      );
+                    })()}
                     
+                    {/* Dirección de envío */}
                     {selectedOrder.direccion_envio && (
-                      <div className="mt-3 p-3 bg-dark-light rounded">
+                      <div className="mt-4 p-3" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '10px' }}>
                         <h6 className="text-pink mb-2">
                           <i className="bi bi-geo-alt me-2"></i>
                           Dirección de envío
@@ -337,6 +410,15 @@ const OrdersPanel = () => {
                       onClick={() => setSelectedOrder(null)}
                     >
                       Cerrar
+                    </button>
+                    <button 
+                      className="btn btn-pink"
+                      onClick={() => {
+                        window.open(`/admin/ordenes/${selectedOrder.id}`, '_blank');
+                      }}
+                    >
+                      <i className="bi bi-printer me-2"></i>
+                      Imprimir
                     </button>
                   </div>
                 </div>

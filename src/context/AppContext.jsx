@@ -3,6 +3,7 @@ import { discosService } from '../services/api';
 
 const AppContext = createContext();
 
+// URL base del backend
 const API_URL = 'http://localhost:3001/api';
 
 export const AppProvider = ({ children }) => {
@@ -16,6 +17,7 @@ export const AppProvider = ({ children }) => {
   const [checkoutData, setCheckoutData] = useState(null);
   const [topDestacados, setTopDestacados] = useState([]);
 
+  // ===== EFECTOS =====
   useEffect(() => {
     const loadInitialData = async () => {
       try {
@@ -28,7 +30,7 @@ export const AppProvider = ({ children }) => {
           const user = JSON.parse(savedUser);
           setIsLoggedIn(true);
           setCurrentUser(user);
-          setIsAdmin(user.isAdmin || false);
+          setIsAdmin(user.isAdmin || user.rol === 'admin');
         }
         
         const savedCart = localStorage.getItem('retrosound_cart');
@@ -48,33 +50,20 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('retrosound_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // ✅ REFRESH PRODUCTOS MEJORADO - ACTUALIZA TODO
+  // ===== REFRESCAR PRODUCTOS =====
   const refreshProducts = useCallback(async () => {
     try {
-      console.log("🔄 Refrescando productos desde MySQL...");
+      console.log("🔄 Refrescando productos desde backend...");
       const data = await discosService.getAll();
       setAdminProducts(data);
-      
-      // Actualizar stock en el carrito
-      setCart(prevCart => {
-        return prevCart.map(cartItem => {
-          const updatedProduct = data.find(p => p.id === cartItem.id);
-          if (updatedProduct) {
-            return { ...cartItem, stock: updatedProduct.stock };
-          }
-          return cartItem;
-        });
-      });
-      
-      // Disparar evento global para que todos los componentes se actualicen
-      window.dispatchEvent(new CustomEvent('productsUpdated', { detail: data }));
-      
+      window.dispatchEvent(new Event('productsUpdated'));
       return data;
     } catch (error) {
       console.error("❌ Error refrescando productos:", error);
     }
   }, []);
 
+  // ===== TOP DESTACADOS =====
   const fetchTopDestacados = useCallback(async () => {
     try {
       const destacados = adminProducts.filter(p => p.top === 1 || p.featured === true);
@@ -86,6 +75,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [adminProducts]);
 
+  // ===== AUTENTICACIÓN =====
   const login = async (credentials) => {
     try {
       const response = await fetch(`${API_URL}/usuarios/login`, {
@@ -100,9 +90,9 @@ export const AppProvider = ({ children }) => {
         const user = data.user;
         setIsLoggedIn(true);
         setCurrentUser(user);
-        setIsAdmin(user.isAdmin);
+        setIsAdmin(user.isAdmin || user.rol === 'admin');
         localStorage.setItem('retrosound_user', JSON.stringify(user));
-        return { success: true, message: `Bienvenido ${user.username}!` };
+        return { success: true, message: `Bienvenido ${user.username || user.nombre}!` };
       } else {
         return { success: false, message: data.error || "Credenciales incorrectas" };
       }
@@ -148,6 +138,7 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  // ===== FUNCIONES DE PRODUCTOS (ADMIN) =====
   const addProduct = async (productData) => {
     try {
       const datosParaDB = {
@@ -160,7 +151,7 @@ export const AppProvider = ({ children }) => {
         descripcion: productData.description,
         top: productData.featured ? 1 : 0,
         precio: productData.price || 25.00,
-        stock: productData.stock || 10,
+        stock: productData.stock !== undefined ? productData.stock : 10,  // ✅ CORREGIDO
         heritage: productData.heritage ? 1 : 0,
         tracks: productData.tracks || 10,
         duration: productData.duration || '45:00',
@@ -201,7 +192,7 @@ export const AppProvider = ({ children }) => {
         descripcion: productData.description,
         top: productData.featured ? 1 : 0,
         precio: productData.price || 25.00,
-        stock: productData.stock || 10,
+        stock: productData.stock !== undefined ? productData.stock : 10,  // ✅ CORREGIDO
         heritage: productData.heritage ? 1 : 0,
         tracks: productData.tracks || 10,
         duration: productData.duration || '45:00',
@@ -254,64 +245,41 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ✅ ADD TO CART CORREGIDO
-  const addToCart = async (product, quantity = 1) => {
-    console.log("🔵 addToCart iniciado", { product, quantity });
-    
+  // ===== FUNCIONES DEL CARRITO =====
+  const addToCart = (product, quantity = 1) => {
     if (!isLoggedIn) {
-      alert('⚠️ Debes iniciar sesión');
       return { success: false, message: "Debes iniciar sesión" };
     }
 
-    try {
-      // Intentar obtener stock de la BD
-      let stockReal = product.stock || 0;
-      
-      try {
-        const response = await fetch(`${API_URL}/discos/${product.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.disco) {
-            stockReal = data.disco.stock;
-          }
-        }
-      } catch (error) {
-        console.log("⚠️ Usando stock local");
-      }
-
-      if (stockReal <= 0) {
-        alert(`❌ "${product.title}" está AGOTADO`);
-        return { success: false, message: "Producto agotado" };
-      }
-
-      const existingItem = cart.find(item => item.id === product.id);
-      const currentQty = existingItem ? existingItem.quantity : 0;
-      
-      if (currentQty + quantity > stockReal) {
-        alert(`❌ Solo hay ${stockReal - currentQty} disponibles`);
-        return { success: false, message: "Stock insuficiente" };
-      }
-
-      // Agregar al carrito
-      setCart(prev => {
-        if (existingItem) {
-          return prev.map(item => 
-            item.id === product.id 
-              ? { ...item, quantity: item.quantity + quantity }
-              : item
-          );
-        }
-        return [...prev, { ...product, quantity, stock: stockReal }];
-      });
-
-      alert(`✅ "${product.title}" agregado al carrito`);
-      return { success: true };
-      
-    } catch (error) {
-      console.error("Error:", error);
-      alert('❌ Error al agregar');
-      return { success: false };
+    if (product.stock <= 0) {
+      return { success: false, message: `"${product.title}" está agotado` };
     }
+
+    if (product.stock < quantity) {
+      return { success: false, message: `Solo hay ${product.stock} unidades disponibles de "${product.title}"` };
+    }
+
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity;
+      if (newQuantity > product.stock) {
+        return { success: false, message: `No puedes agregar más de ${product.stock} unidades de "${product.title}"` };
+      }
+    }
+
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [...prev, { ...product, quantity }];
+    });
+    
+    return { success: true, message: "Producto agregado al carrito" };
   };
 
   const removeFromCart = (productId) => {
@@ -343,6 +311,7 @@ export const AppProvider = ({ children }) => {
     setCart([]);
   };
 
+  // ===== CÁLCULOS DEL CARRITO =====
   const calculateCartTotal = useCallback(() => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   }, [cart]);
@@ -367,6 +336,7 @@ export const AppProvider = ({ children }) => {
     return cart.reduce((count, item) => count + item.quantity, 0);
   }, [cart]);
 
+  // ===== FUNCIONES DE PEDIDOS =====
   const fetchOrders = useCallback(async () => {
     if (!isAdmin) return;
     
@@ -402,12 +372,14 @@ export const AppProvider = ({ children }) => {
     }
   }, [isAdmin, fetchOrders]);
 
+  // ===== FUNCIÓN PARA GUARDAR DATOS DEL CHECKOUT =====
   const saveCheckoutData = useCallback((data) => {
-    console.log("💾 Guardando datos del checkout:", data);
+    console.log("💾 Guardando datos del checkout en contexto:", data);
     setCheckoutData(data);
     sessionStorage.setItem('pendingCheckout', JSON.stringify(data));
   }, []);
 
+  // ===== FUNCIONES DE PAGO =====
   const processPayment = useCallback(async (paymentDetails) => {
     try {
       const response = await fetch(`${API_URL}/ordenes`, {
@@ -444,146 +416,194 @@ export const AppProvider = ({ children }) => {
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart]);
 
-  // ✅ CREATE PAYPAL ORDER
   const createPayPalOrder = useCallback(async (orderData) => {
     try {
-      const payload = {
-        cart: cart,
-        subtotal: calculateCartTotal(),
-        tax: calculateCartTax(),
-        shipping: calculateCartShipping(),
-        total: calculateCartGrandTotal(),
-        shippingAddress: orderData.shippingAddress,
-        usuario_id: currentUser?.id
-      };
-
-      console.log("📤 Enviando a create-order:", payload);
-
       const response = await fetch(`${API_URL}/paypal/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('❌ El servidor no devolvió JSON:', text.substring(0, 500));
-        throw new Error(`Error del servidor: ${response.status} ${response.statusText}. Verifica que el backend esté corriendo.`);
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Error ${response.status}: ${data.message || 'Error desconocido'}`);
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      console.log("✅ Orden de PayPal creada:", data);
-      return data;
-
-    } catch (error) {
-      console.error('❌ Error creating PayPal order:', error);
-      throw error;
-    }
-  }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
-
-  // ✅ CAPTURE PAYPAL ORDER - CORREGIDO
-  const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
-    try {
-      let checkoutInfo = checkoutData;
-      
-      if (!checkoutInfo || !checkoutInfo.cart || checkoutInfo.cart.length === 0) {
-        const savedCheckout = sessionStorage.getItem('pendingCheckout');
-        if (savedCheckout) {
-          checkoutInfo = JSON.parse(savedCheckout);
-          console.log("📦 Recuperando de sessionStorage:", checkoutInfo);
-        }
-      }
-
-      if (!checkoutInfo || !checkoutInfo.cart || checkoutInfo.cart.length === 0) {
-        checkoutInfo = {
+        body: JSON.stringify({
           cart: cart,
           subtotal: calculateCartTotal(),
           tax: calculateCartTax(),
           shipping: calculateCartShipping(),
-          total: calculateCartGrandTotal()
-        };
-      }
+          total: calculateCartGrandTotal(),
+          shippingAddress: orderData.shippingAddress,
+          usuario_id: currentUser?.id
+        })
+      });
 
-      // Obtener userId
-      let userId = currentUser?.id;
-      if (!userId) {
-        const savedUser = localStorage.getItem('retrosound_user');
-        if (savedUser) {
-          const user = JSON.parse(savedUser);
-          userId = user.id;
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating PayPal order:', error);
+      throw error;
+    }
+  }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
+
+  // ===== CAPTURE PAYPAL ORDER =====
+  const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
+    try {
+      let cartToUse = checkoutData?.cart;
+      let subtotalToUse = checkoutData?.subtotal;
+      let taxToUse = checkoutData?.tax;
+      let shippingToUse = checkoutData?.shipping;
+      let totalToUse = checkoutData?.total;
+      
+      if (!cartToUse || cartToUse.length === 0) {
+        const savedCheckout = sessionStorage.getItem('pendingCheckout');
+        if (savedCheckout) {
+          const savedData = JSON.parse(savedCheckout);
+          cartToUse = savedData.cart;
+          subtotalToUse = savedData.subtotal;
+          taxToUse = savedData.tax;
+          shippingToUse = savedData.shipping;
+          totalToUse = savedData.total;
         }
       }
-
-      if (!userId) {
-        throw new Error('ID de usuario requerido');
+      
+      if (!cartToUse || cartToUse.length === 0) {
+        cartToUse = cart;
+        subtotalToUse = calculateCartTotal();
+        taxToUse = calculateCartTax();
+        shippingToUse = calculateCartShipping();
+        totalToUse = calculateCartGrandTotal();
       }
 
-      const payload = {
-        orderId: orderId,
-        usuario_id: userId,
-        cart: checkoutInfo.cart,
-        total: checkoutInfo.total,
-        subtotal: checkoutInfo.subtotal,
-        tax: checkoutInfo.tax,
-        shipping: checkoutInfo.shipping
-      };
+      if (!cartToUse || cartToUse.length === 0) {
+        throw new Error("El carrito está vacío");
+      }
 
-      console.log("📤 Enviando a capture-order:", payload);
+      const datosParaEnviar = {
+        orderId: orderId,
+        usuario_id: currentUser?.id,
+        cart: cartToUse,
+        total: totalToUse,
+        subtotal: subtotalToUse,
+        tax: taxToUse,
+        shipping: shippingToUse,
+        shippingAddress: checkoutData?.shippingAddress || paymentDetails?.shippingAddress || {}
+      };
 
       const response = await fetch(`${API_URL}/paypal/capture-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(datosParaEnviar)
       });
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('❌ El servidor no devolvió JSON:', text.substring(0, 500));
-        throw new Error('Error de comunicación con el servidor');
-      }
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Error ${response.status}`);
-      }
-
-      if (!data.ok) {
+      
+      if (data.ok) {
+        clearCart();
+        setCheckoutData(null);
+        sessionStorage.removeItem('pendingCheckout');
+        await refreshProducts();
+        return data;
+      } else {
         throw new Error(data.error || 'Error al procesar el pago');
       }
-
-      console.log("✅ Pago capturado exitosamente:", data);
-
-      clearCart();
-      setCheckoutData(null);
-      sessionStorage.removeItem('pendingCheckout');
-      
-      // ✅ FORZAR REFRESH DE PRODUCTOS
-      await refreshProducts();
-      
-      // ✅ FORZAR RECARGA DE PÁGINA PARA ACTUALIZAR TODO
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-
-      return data;
-
     } catch (error) {
       console.error('❌ Error en capturePayPalOrder:', error);
       throw error;
     }
   }, [currentUser, cart, checkoutData, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart, refreshProducts]);
+
+  // ===== NUEVAS FUNCIONES DE USUARIO =====
+  const updateUserProfile = useCallback(async (userData) => {
+    try {
+      const formData = new FormData();
+      formData.append('nombre', userData.nombre);
+      formData.append('email', userData.email);
+      if (userData.avatar) {
+        formData.append('avatar', userData.avatar);
+      }
+
+      const response = await fetch(`${API_URL}/usuarios/${currentUser?.id}/perfil`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      
+      if (data.ok) {
+        const updatedUser = { ...currentUser, ...data.user };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('retrosound_user', JSON.stringify(updatedUser));
+        return { success: true, user: updatedUser };
+      } else {
+        return { success: false, message: data.error };
+      }
+    } catch (error) {
+      console.error('Error actualizando perfil:', error);
+      return { success: false, message: 'Error de conexión' };
+    }
+  }, [currentUser]);
+
+  const fetchUserOrders = useCallback(async () => {
+    if (!currentUser?.id) return [];
+    
+    try {
+      const response = await fetch(`${API_URL}/ordenes/usuario/${currentUser.id}`);
+      const data = await response.json();
+      
+      if (data.ok) {
+        return data.ordenes;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error obteniendo pedidos:', error);
+      return [];
+    }
+  }, [currentUser]);
+
+  const fetchPaymentMethods = useCallback(async () => {
+    if (!currentUser?.id) return [];
+    
+    try {
+      const response = await fetch(`${API_URL}/usuarios/${currentUser.id}/payment-methods`);
+      const data = await response.json();
+      
+      if (data.ok) {
+        return data.methods;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error obteniendo métodos de pago:', error);
+      return [];
+    }
+  }, [currentUser]);
+
+  const addPaymentMethod = useCallback(async (paymentData) => {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/${currentUser?.id}/payment-methods`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData)
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error agregando método de pago:', error);
+      return { success: false };
+    }
+  }, [currentUser]);
+
+  const deletePaymentMethod = useCallback(async (methodId) => {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/${currentUser?.id}/payment-methods/${methodId}`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error eliminando método de pago:', error);
+      return { success: false };
+    }
+  }, [currentUser]);
 
   const verifyProductStock = useCallback(async (productId) => {
     try {
@@ -599,9 +619,11 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  // ===== RETURN DEL PROVIDER =====
   return (
     <AppContext.Provider
       value={{
+        // Estados
         isLoggedIn,
         currentUser,
         cart,
@@ -611,30 +633,53 @@ export const AppProvider = ({ children }) => {
         orders,
         checkoutData,
         topDestacados,
+        
+        // Auth
         login,
         logout,
         register,
+        
+        // Productos
         addProduct,
         updateProduct,
         deleteProduct,
         refreshProducts,
+        
+        // Carrito
         addToCart,
         removeFromCart,
         updateCartQuantity,
         clearCart,
+        
+        // Cálculos
         calculateCartTotal,
         calculateCartTax,
         calculateCartShipping,
         calculateCartGrandTotal,
         calculateCartCount,
+        
+        // Pedidos
         fetchOrders,
         updateOrderStatus,
+        
+        // Checkout
         saveCheckoutData,
         fetchTopDestacados,
+        
+        // Pago
         processPayment,
         createPayPalOrder,
         capturePayPalOrder,
-        verifyProductStock
+        
+        // Utilidades
+        verifyProductStock,
+        
+        // NUEVAS FUNCIONES DE USUARIO
+        updateUserProfile,
+        fetchUserOrders,
+        fetchPaymentMethods,
+        addPaymentMethod,
+        deletePaymentMethod
       }}
     >
       {children}

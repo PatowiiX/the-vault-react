@@ -16,6 +16,7 @@ const Header = () => {
   
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [loginData, setLoginData] = useState({ username_or_email: '', password: '' });
   const [registerData, setRegisterData] = useState({ 
     username: '', 
@@ -32,6 +33,16 @@ const Header = () => {
   useEffect(() => {
     setCartCount(calculateCartCount());
   }, [calculateCartCount, cart]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showUserMenu && !event.target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showUserMenu]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -118,7 +129,7 @@ const Header = () => {
 
   const handleLogout = () => {
     logout();
-    alert('Sesión cerrada correctamente');
+    setShowUserMenu(false);
   };
 
   const handleCartClick = (e) => {
@@ -142,6 +153,15 @@ const Header = () => {
     navigate('/cart');
   };
 
+  // Obtener URL del avatar
+  const getAvatarUrl = () => {
+    if (currentUser?.avatar) {
+      return currentUser.avatar;
+    }
+    const name = encodeURIComponent(currentUser?.nombre || currentUser?.username || 'User');
+    return `https://ui-avatars.com/api/?background=00ff88&color=0a0a0f&bold=true&size=40&name=${name}`;
+  };
+
   return (
     <>
       <nav className="top-access">
@@ -157,6 +177,22 @@ const Header = () => {
             >
               INICIO
             </Link>
+            
+            {isLoggedIn && (
+              <Link 
+                to="/mi-cuenta" 
+                className="text-white fw-bold text-decoration-none fs-6 px-3"
+                style={{
+                  background: 'rgba(0, 255, 136, 0.1)',
+                  borderRadius: '5px',
+                  padding: '5px 15px',
+                  border: '1px solid #00ff88'
+                }}
+              >
+                <i className="bi bi-person-gear me-2"></i>
+                MI CUENTA
+              </Link>
+            )}
             
             {isAdmin && (
               <Link 
@@ -234,33 +270,230 @@ const Header = () => {
             
             <div className="d-flex align-items-center gap-3">
               {isLoggedIn && currentUser && (
-                <div className="d-flex align-items-center user-info">
-                  <i className="bi bi-person-circle text-white me-2"></i>
-                  <span className="text-white fw-bold" style={{ fontSize: '0.9rem' }}>
-                    {currentUser.username}
-                    {isAdmin && (
-                      <i className="bi bi-star-fill text-warning ms-1" style={{ fontSize: '0.7rem' }}></i>
-                    )}
-                  </span>
+                <div className="user-menu-container position-relative">
+                  <button 
+                    className="d-flex align-items-center gap-2 user-info-btn"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '5px 10px',
+                      borderRadius: '30px',
+                      transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 255, 136, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <img 
+                      src={getAvatarUrl()}
+                      alt="Avatar"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '2px solid #00ff88'
+                      }}
+                    />
+                    <span className="text-white fw-bold" style={{ fontSize: '0.9rem' }}>
+                      {currentUser?.nombre || currentUser?.username}
+                      {isAdmin && (
+                        <i className="bi bi-star-fill text-warning ms-1" style={{ fontSize: '0.7rem' }}></i>
+                      )}
+                    </span>
+                    <i className="bi bi-chevron-down text-white" style={{ 
+                      fontSize: '0.8rem', 
+                      transition: 'transform 0.3s', 
+                      transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0)' 
+                    }}></i>
+                  </button>
+                  
+                  {showUserMenu && (
+                    <div className="user-dropdown-menu" style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '0.5rem',
+                      background: '#1a1a2e',
+                      border: '1px solid rgba(0, 255, 136, 0.3)',
+                      borderRadius: '12px',
+                      minWidth: '260px',
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                      overflow: 'hidden',
+                      zIndex: 1001,
+                      animation: 'slideDown 0.2s ease'
+                    }}>
+                      <div style={{
+                        padding: '1rem',
+                        background: 'linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(0, 0, 0, 0.3))',
+                        borderBottom: '1px solid rgba(0, 255, 136, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        <img 
+                          src={getAvatarUrl()}
+                          alt="Avatar"
+                          style={{
+                            width: '45px',
+                            height: '45px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #00ff88'
+                          }}
+                        />
+                        <div>
+                          <strong style={{ color: '#00ff88', display: 'block', fontSize: '0.95rem' }}>
+                            {currentUser?.nombre || currentUser?.username}
+                          </strong>
+                          <small style={{ color: '#aaa', fontSize: '0.7rem' }}>
+                            {currentUser?.email}
+                          </small>
+                        </div>
+                      </div>
+                      
+                      <Link 
+                        to="/mi-cuenta" 
+                        className="dropdown-item"
+                        onClick={() => setShowUserMenu(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          color: '#fff',
+                          textDecoration: 'none',
+                          transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(0, 255, 136, 0.1)';
+                          e.currentTarget.style.color = '#00ff88';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                      >
+                        <i className="bi bi-person-circle" style={{ fontSize: '1.2rem' }}></i>
+                        <span>Mi Perfil</span>
+                      </Link>
+                      
+                      <Link 
+                        to="/mi-cuenta?tab=orders" 
+                        className="dropdown-item"
+                        onClick={() => setShowUserMenu(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          color: '#fff',
+                          textDecoration: 'none',
+                          transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(0, 255, 136, 0.1)';
+                          e.currentTarget.style.color = '#00ff88';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                      >
+                        <i className="bi bi-receipt" style={{ fontSize: '1.2rem' }}></i>
+                        <span>Mis Pedidos</span>
+                      </Link>
+                      
+                      <Link 
+                        to="/mi-cuenta?tab=payment-methods" 
+                        className="dropdown-item"
+                        onClick={() => setShowUserMenu(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          color: '#fff',
+                          textDecoration: 'none',
+                          transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(0, 255, 136, 0.1)';
+                          e.currentTarget.style.color = '#00ff88';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                      >
+                        <i className="bi bi-credit-card" style={{ fontSize: '1.2rem' }}></i>
+                        <span>Métodos de Pago</span>
+                      </Link>
+                      
+                      {isAdmin && (
+                        <Link 
+                          to="/admin" 
+                          className="dropdown-item"
+                          onClick={() => setShowUserMenu(false)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '12px 16px',
+                            color: '#d4af37',
+                            textDecoration: 'none',
+                            transition: 'all 0.3s ease',
+                            borderTop: '1px solid rgba(255,255,255,0.1)',
+                            marginTop: '5px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(212, 175, 55, 0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <i className="bi bi-shield-lock" style={{ fontSize: '1.2rem' }}></i>
+                          <span>Panel Admin</span>
+                        </Link>
+                      )}
+                      
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
+                      
+                      <button 
+                        onClick={handleLogout}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          color: '#ff4444',
+                          textDecoration: 'none',
+                          transition: 'all 0.3s ease',
+                          background: 'transparent',
+                          border: 'none',
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '0.95rem'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <i className="bi bi-box-arrow-right" style={{ fontSize: '1.2rem' }}></i>
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               
-              {isLoggedIn ? (
-                <button 
-                  className="btn px-4 logout-btn"
-                  onClick={handleLogout}
-                  style={{
-                    background: 'transparent',
-                    border: '2px solid var(--neon-blue)',
-                    color: 'var(--neon-blue)',
-                    fontWeight: 'bold',
-                    padding: '8px 20px'
-                  }}
-                >
-                  <i className="bi bi-box-arrow-right me-2"></i>
-                  SALIR
-                </button>
-              ) : (
+              {!isLoggedIn && (
                 <button 
                   className="btn text-white fw-bold px-4 login-btn"
                   onClick={() => setShowLoginModal(true)}
@@ -389,7 +622,6 @@ const Header = () => {
                         </div>
                       )}
                       
-                      {/* LINK DE RECUPERACIÓN DE CONTRASEÑA AGREGADO AQUÍ */}
                       <div className="text-end mt-2">
                         <Link 
                           to="/forgot-password" 

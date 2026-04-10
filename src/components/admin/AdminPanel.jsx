@@ -12,13 +12,14 @@ const AdminPanel = () => {
     deleteProduct,
     orders,
     fetchOrders,
-    refreshProducts  // 👈 AGREGADO
+    refreshProducts
   } = useApp();
   
   const [editingProduct, setEditingProduct] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [imagePreview, setImagePreview] = useState('');
+  const [loading, setLoading] = useState(false);
   
   const initialFormState = {
     title: '',
@@ -32,6 +33,10 @@ const AdminPanel = () => {
     featured: false,
     heritage: false,
     image: '',
+    tracks: 10,
+    duration: '45:00',
+    sku: '',
+    edition: ''
   };
 
   const [newProduct, setNewProduct] = useState(initialFormState);
@@ -42,12 +47,60 @@ const AdminPanel = () => {
     }
   }, [activeTab, isAdmin, fetchOrders]);
 
+  // ========== CONTROL DE STOCK ==========
+  const handleStockChange = async (product, newStock) => {
+    if (newStock < 0) newStock = 0;
+    
+    setLoading(true);
+    
+    const productToUpdate = {
+      title: product.title || product.titulo,
+      artist: product.artist || product.artista,
+      year: product.year || product.anio,
+      genre: product.genre || product.genero,
+      format: product.format || product.formato,
+      price: product.price || product.precio,
+      stock: newStock,
+      description: product.description || product.descripcion,
+      featured: product.featured || (product.top === 1),
+      heritage: product.heritage || (product.heritage === 1),
+      image: product.image || product.imagen_path,
+      tracks: product.tracks,
+      duration: product.duration,
+      sku: product.sku,
+      edition: product.edition
+    };
+    
+    const result = await updateProduct(product.id, productToUpdate);
+    
+    if (result.success) {
+      alert(`✅ Stock actualizado a ${newStock}`);
+      await refreshProducts();
+    } else {
+      alert('❌ Error al actualizar stock: ' + (result.message || 'Desconocido'));
+    }
+    setLoading(false);
+  };
+
+  const markAsOutOfStock = async (product) => {
+    if (!window.confirm(`⚠️ ¿Marcar "${product.title || product.titulo}" como AGOTADO? (Stock = 0)`)) return;
+    await handleStockChange(product, 0);
+  };
+
+  const markAsInStock = async (product) => {
+    const newStock = prompt('✏️ Ingrese la cantidad de stock disponible:', product.stock || 1);
+    if (newStock !== null && !isNaN(newStock) && parseInt(newStock) >= 0) {
+      await handleStockChange(product, parseInt(newStock));
+    }
+  };
+
   const handleAddProduct = async () => {
     if (!newProduct.title || !newProduct.artist) {
       alert('Completa los campos obligatorios (Título y Artista)');
       return;
     }
     
+    setLoading(true);
     const productToSend = {
       ...newProduct,
       image: newProduct.image || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&h=400&fit=crop'
@@ -56,14 +109,15 @@ const AdminPanel = () => {
     const result = await addProduct(productToSend);
     
     if (result.success) {
-      alert('Producto guardado en MySQL');
-      await refreshProducts(); // 👈 FORZAR RECARGA
+      alert('✅ Producto guardado en MySQL');
+      await refreshProducts();
       setNewProduct(initialFormState);
       setImagePreview('');
       setShowAddForm(false);
     } else {
-      alert('Error: ' + (result.message || 'No se pudo guardar'));
+      alert('❌ Error: ' + (result.message || 'No se pudo guardar'));
     }
+    setLoading(false);
   };
 
   const handleUpdateProduct = async () => {
@@ -72,24 +126,28 @@ const AdminPanel = () => {
       return;
     }
 
+    setLoading(true);
     const result = await updateProduct(editingProduct.id, editingProduct);
     
     if (result.success) {
-      alert('Cambios guardados en la base de datos');
-      await refreshProducts(); // 👈 FORZAR RECARGA
+      alert('✅ Cambios guardados en la base de datos');
+      await refreshProducts();
       setEditingProduct(null);
     } else {
-      alert('Error: ' + (result.message || 'No se pudo actualizar'));
+      alert('❌ Error: ' + (result.message || 'No se pudo actualizar'));
     }
+    setLoading(false);
   };
 
   const handleDelete = async (id) => {
     if (window.confirm('¿Estás seguro de eliminar este disco?')) {
+      setLoading(true);
       const result = await deleteProduct(id);
       if (result.success) {
-        alert('Producto eliminado');
-        await refreshProducts(); // 👈 FORZAR RECARGA
+        alert('✅ Producto eliminado');
+        await refreshProducts();
       }
+      setLoading(false);
     }
   };
 
@@ -102,11 +160,15 @@ const AdminPanel = () => {
       genre: product.genre || product.genero || 'Rock',
       format: product.format || product.formato || 'Vinyl',
       price: product.price || product.precio || 25.00,
-      stock: product.stock || 10,
+      stock: product.stock || 0,
       description: product.description || product.descripcion || '',
       featured: product.featured || (product.top === 1),
       heritage: product.heritage || (product.heritage === 1),
-      image: product.image || product.imagen_path || ''
+      image: product.image || product.imagen_path || '',
+      tracks: product.tracks || '',
+      duration: product.duration || '',
+      sku: product.sku || '',
+      edition: product.edition || ''
     };
     setEditingProduct(normalizedProduct);
   };
@@ -146,6 +208,7 @@ const AdminPanel = () => {
               className="btn btn-add-album"
               onClick={() => setShowAddForm(true)}
               title="Agregar nuevo disco"
+              disabled={loading}
             >
               <i className="bi bi-plus-lg"></i>
             </button>
@@ -197,7 +260,7 @@ const AdminPanel = () => {
                   <div>
                     <h6>BAJO STOCK</h6>
                     <h3 className="text-warning">
-                      {adminProducts.filter(p => (p.stock || 0) < 5).length}
+                      {adminProducts.filter(p => (p.stock || 0) > 0 && (p.stock || 0) < 5).length}
                     </h3>
                   </div>
                   <i className="bi bi-exclamation-triangle fs-1"></i>
@@ -249,7 +312,7 @@ const AdminPanel = () => {
               </thead>
               <tbody>
                 {adminProducts.map(product => (
-                  <tr key={product.id}>
+                  <tr key={product.id} className={product.stock === 0 ? 'opacity-75' : ''}>
                     <td><small className="text-white">#{product.id}</small></td>
                     <td>
                       <img 
@@ -281,36 +344,53 @@ const AdminPanel = () => {
                       ${parseFloat(product.price || product.precio || 0).toFixed(2)}
                     </td>
                     
-                    {/* UN RETOQUE POR ACA*/}
                     <td>
-                      <div className="d-flex align-items-center">
+                      <div className="d-flex align-items-center gap-2">
+                        <button 
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={() => handleStockChange(product, (product.stock || 0) - 1)}
+                          disabled={loading || (product.stock || 0) <= 0}
+                          style={{ borderRadius: '50%', width: '28px', height: '28px', padding: 0 }}
+                          title="Disminuir stock"
+                        >
+                          <i className="bi bi-dash"></i>
+                        </button>
+                        
                         <span className={`badge rounded-pill ${
                           (product.stock || 0) === 0 ? 'bg-danger' :
                           (product.stock || 0) < 5 ? 'bg-warning text-dark' : 'bg-success'
                         }`} style={{ 
-                          fontSize: '0.95rem', 
+                          fontSize: '1rem', 
                           padding: '6px 12px',
-                          minWidth: '40px',
+                          minWidth: '45px',
                           fontWeight: '600'
                         }}>
                           {product.stock || 0}
                         </span>
+                        
+                        <button 
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={() => handleStockChange(product, (product.stock || 0) + 1)}
+                          disabled={loading}
+                          style={{ borderRadius: '50%', width: '28px', height: '28px', padding: 0 }}
+                          title="Aumentar stock"
+                        >
+                          <i className="bi bi-plus"></i>
+                        </button>
+                        
                         {(product.stock || 0) === 0 && (
-                          <span className="ms-2 text-danger small">
-                            <i className="bi bi-exclamation-circle-fill me-1"></i>
-                            Agotado
+                          <span className="ms-1 text-danger small">
+                            <i className="bi bi-exclamation-circle-fill"></i>
                           </span>
                         )}
                         {(product.stock || 0) > 0 && (product.stock || 0) < 5 && (
-                          <span className="ms-2 text-warning small">
-                            <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                            Bajo stock
+                          <span className="ms-1 text-warning small">
+                            <i className="bi bi-exclamation-triangle-fill"></i>
                           </span>
                         )}
                         {(product.stock || 0) >= 5 && (
-                          <span className="ms-2 text-success small">
-                            <i className="bi bi-check-circle-fill me-1"></i>
-                            Disponible
+                          <span className="ms-1 text-success small">
+                            <i className="bi bi-check-circle-fill"></i>
                           </span>
                         )}
                       </div>
@@ -326,21 +406,45 @@ const AdminPanel = () => {
                         )}
                       </div>
                     </td>
+                    
                     <td>
-                      <button 
-                        className="btn btn-sm btn-outline-info me-2"
-                        onClick={() => openEditModal(product)}
-                        title="Editar"
-                      >
-                        <i className="bi bi-pencil"></i>
-                      </button>
-                      <button 
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDelete(product.id)}
-                        title="Eliminar"
-                      >
-                        <i className="bi bi-trash"></i>
-                      </button>
+                      <div className="btn-group" role="group">
+                        <button 
+                          className="btn btn-sm btn-outline-info"
+                          onClick={() => openEditModal(product)}
+                          title="Editar"
+                          disabled={loading}
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                        <button 
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => handleDelete(product.id)}
+                          title="Eliminar"
+                          disabled={loading}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                        {(product.stock || 0) > 0 ? (
+                          <button 
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => markAsOutOfStock(product)}
+                            title="Marcar como agotado"
+                            disabled={loading}
+                          >
+                            <i className="bi bi-x-circle"></i>
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-sm btn-outline-success"
+                            onClick={() => markAsInStock(product)}
+                            title="Restablecer stock"
+                            disabled={loading}
+                          >
+                            <i className="bi bi-arrow-repeat"></i>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -364,6 +468,7 @@ const AdminPanel = () => {
           <OrdersPanel />
         )}
 
+        {/* MODAL DE EDICIÓN - CON NUEVOS CAMPOS */}
         {editingProduct && (
           <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1050}}>
             <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -499,6 +604,71 @@ const AdminPanel = () => {
                             onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
                           ></textarea>
                         </div>
+
+                        {/* ========== NUEVOS CAMPOS ========== */}
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-music-note-list me-2 text-pink"></i>
+                              Número de Canciones
+                            </label>
+                            <input 
+                              type="number" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={editingProduct.tracks || ''}
+                              onChange={e => setEditingProduct({...editingProduct, tracks: parseInt(e.target.value) || 0})}
+                              placeholder="Ej: 28"
+                            />
+                            <small className="text-muted">Visible para todos los usuarios</small>
+                          </div>
+                          
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-clock me-2 text-pink"></i>
+                              Duración
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={editingProduct.duration || ''}
+                              onChange={e => setEditingProduct({...editingProduct, duration: e.target.value})}
+                              placeholder="Ej: 2h 11min"
+                            />
+                            <small className="text-muted">Visible para todos los usuarios</small>
+                          </div>
+                        </div>
+
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-upc-scan me-2 text-pink"></i>
+                              SKU / Código
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={editingProduct.sku || ''}
+                              onChange={e => setEditingProduct({...editingProduct, sku: e.target.value})}
+                              placeholder="Ej: VAULT-001"
+                            />
+                            <small className="text-muted">⚠️ Visible SOLO para administradores</small>
+                          </div>
+                          
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-award me-2 text-pink"></i>
+                              Edición Especial
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={editingProduct.edition || ''}
+                              onChange={e => setEditingProduct({...editingProduct, edition: e.target.value})}
+                              placeholder="Ej: Remasterizado 2024"
+                            />
+                            <small className="text-muted">Visible para todos si es Heritage</small>
+                          </div>
+                        </div>
                         
                         <div className="col-md-6">
                           <div className="form-check">
@@ -537,6 +707,7 @@ const AdminPanel = () => {
                   <button 
                     className="btn btn-secondary" 
                     onClick={() => setEditingProduct(null)}
+                    disabled={loading}
                   >
                     <i className="bi bi-x-lg me-2"></i>
                     Cancelar
@@ -544,9 +715,19 @@ const AdminPanel = () => {
                   <button 
                     className="btn btn-save-changes" 
                     onClick={handleUpdateProduct}
+                    disabled={loading}
                   >
-                    <i className="bi bi-check-lg me-2"></i>
-                    GUARDAR CAMBIOS
+                    {loading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        GUARDANDO...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check-lg me-2"></i>
+                        GUARDAR CAMBIOS
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -554,6 +735,7 @@ const AdminPanel = () => {
           </div>
         )}
 
+        {/* MODAL DE AGREGAR - CON NUEVOS CAMPOS */}
         {showAddForm && (
           <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1050}}>
             <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -696,6 +878,67 @@ const AdminPanel = () => {
                             placeholder="Descripción del álbum..."
                           ></textarea>
                         </div>
+
+                        {/* ========== NUEVOS CAMPOS EN AGREGAR ========== */}
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-music-note-list me-2"></i>
+                              Número de Canciones
+                            </label>
+                            <input 
+                              type="number" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={newProduct.tracks}
+                              onChange={e => setNewProduct({...newProduct, tracks: parseInt(e.target.value) || 0})}
+                              placeholder="Ej: 28"
+                            />
+                          </div>
+                          
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-clock me-2"></i>
+                              Duración
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={newProduct.duration}
+                              onChange={e => setNewProduct({...newProduct, duration: e.target.value})}
+                              placeholder="Ej: 2h 11min"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-upc-scan me-2"></i>
+                              SKU / Código
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={newProduct.sku}
+                              onChange={e => setNewProduct({...newProduct, sku: e.target.value})}
+                              placeholder="Ej: VAULT-001"
+                            />
+                          </div>
+                          
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label text-white">
+                              <i className="bi bi-award me-2"></i>
+                              Edición Especial
+                            </label>
+                            <input 
+                              type="text" 
+                              className="form-control bg-secondary text-white border-0"
+                              value={newProduct.edition}
+                              onChange={e => setNewProduct({...newProduct, edition: e.target.value})}
+                              placeholder="Ej: Remasterizado 2024"
+                            />
+                          </div>
+                        </div>
                         
                         <div className="col-md-6">
                           <div className="form-check">
@@ -738,6 +981,7 @@ const AdminPanel = () => {
                       setNewProduct(initialFormState);
                       setImagePreview('');
                     }}
+                    disabled={loading}
                   >
                     <i className="bi bi-x-lg me-2"></i>
                     Cancelar
@@ -745,9 +989,19 @@ const AdminPanel = () => {
                   <button 
                     className="btn btn-success" 
                     onClick={handleAddProduct}
+                    disabled={loading}
                   >
-                    <i className="bi bi-check-lg me-2"></i>
-                    CREAR EN BASE DE DATOS
+                    {loading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        CREANDO...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check-lg me-2"></i>
+                        CREAR EN BASE DE DATOS
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

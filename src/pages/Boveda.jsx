@@ -10,21 +10,17 @@ const Boveda = () => {
   const [genreFilter, setGenreFilter] = useState('all');
   const [sortBy, setSortBy] = useState('default');
 
-  //  REFRESCAR AL ENTRAR Y CADA 30 SEGUNDOS
   useEffect(() => {
     refreshProducts();
-    
-    const interval = setInterval(() => {
-      refreshProducts();
-    }, 30000);
-    
+    const interval = setInterval(() => refreshProducts(), 30000);
     return () => clearInterval(interval);
   }, [refreshProducts]);
 
+  // ✅ FILTROS CORREGIDOS - Excluye agotados en todos los filtros excepto 'outofstock'
   useEffect(() => {
     let filtered = [...adminProducts];
     
-    // FILTRAR AGOTADOS SI NO ESTÁ EN MODO "outofstock"
+    // ✅ CORREGIDO: Excluir agotados SIEMPRE excepto cuando el filtro es 'outofstock'
     if (activeFilter !== 'outofstock') {
       filtered = filtered.filter(p => p.stock > 0);
     }
@@ -38,20 +34,22 @@ const Boveda = () => {
       );
     }
     
+    // Filtros específicos
     if (activeFilter === 'featured') {
       filtered = filtered.filter(p => p.featured);
     } else if (activeFilter === 'lowstock') {
       filtered = filtered.filter(p => p.stock > 0 && p.stock < 10);
     } else if (activeFilter === 'vinyl') {
-      filtered = filtered.filter(p => p.format === 'Vinyl' && p.stock > 0);
+      filtered = filtered.filter(p => (p.format === 'Vinyl' || p.formato === 'Vinyl'));
     } else if (activeFilter === 'cd') {
-      filtered = filtered.filter(p => p.format === 'CD' && p.stock > 0);
+      filtered = filtered.filter(p => (p.format === 'CD' || p.formato === 'CD'));
     } else if (activeFilter === 'cassette') {
-      filtered = filtered.filter(p => p.format === 'Cassette' && p.stock > 0);
+      filtered = filtered.filter(p => (p.format === 'Cassette' || p.formato === 'Cassette'));
     } else if (activeFilter === 'heritage') {
-      filtered = filtered.filter(p => p.heritage && p.stock > 0);
+      filtered = filtered.filter(p => p.heritage);
     } else if (activeFilter === 'outofstock') {
-      filtered = filtered.filter(p => p.stock === 0);
+      // Mostrar SOLO agotados (sin el filtro de stock > 0 de arriba)
+      filtered = adminProducts.filter(p => p.stock === 0);
     }
     
     if (genreFilter !== 'all') {
@@ -73,29 +71,29 @@ const Boveda = () => {
     setFilteredProducts(filtered);
   }, [adminProducts, searchTerm, activeFilter, genreFilter, sortBy]);
 
-const handleAddToCart = async (e, product) => {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  if (!isLoggedIn) {
-    alert('⚠️ Debes iniciar sesión para agregar al carrito');
-    return;
-  }
-  
-  if (product.stock <= 0) {
-    alert(`❌ "${product.title}" está AGOTADO`);
-    return;
-  }
-  
-  //  AGREGAR await AQUÍ
-  const result = await addToCart(product);
-  
-  if (result?.success) {
-    alert(`✅ ${product.title} agregado al carrito`);
-  } else {
-    alert(`❌ ${result?.message || 'No se pudo agregar al carrito'}`);
-  }
-};
+  const handleAddToCart = async (e, product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!isLoggedIn) {
+      alert('⚠️ Debes iniciar sesión para agregar al carrito');
+      return;
+    }
+    
+    if (product.stock <= 0) {
+      alert(`❌ "${product.title}" está AGOTADO`);
+      return;
+    }
+    
+    const result = await addToCart(product);
+    
+    if (result?.success) {
+      alert(`✅ ${product.title} agregado al carrito`);
+      await refreshProducts();
+    } else {
+      alert(`❌ ${result?.message || 'No se pudo agregar al carrito'}`);
+    }
+  };
 
   const getButtonClass = (product) => {
     if (product.stock <= 0) return 'btn-adaptivo btn-sin-stock';
@@ -114,17 +112,13 @@ const handleAddToCart = async (e, product) => {
       return <span style={{ color: '#ff4444', fontWeight: 'bold' }}>❌ AGOTADO</span>;
     }
     if (product.stock < 5) {
-      return (
-        <span style={{ color: '#ffaa00' }}>
-          ⚠️ ¡Últimas {product.stock}!
-        </span>
-      );
+      return <span style={{ color: '#ffaa00' }}>⚠️ ¡Últimas {product.stock}!</span>;
     }
-    return (
-      <span style={{ color: '#4caf50' }}>
-        ✅ {product.stock} disponibles
-      </span>
-    );
+    return <span style={{ color: '#4caf50' }}>✅ {product.stock} disponibles</span>;
+  };
+
+  const getFormatoDisplay = (product) => {
+    return product.formato || product.format || 'Vinilo';
   };
 
   const allGenres = [
@@ -214,7 +208,7 @@ const handleAddToCart = async (e, product) => {
                 <i className="bi bi-funnel me-2"></i>
                 <strong>Filtros activos:</strong>
                 {searchTerm && <span className="badge bg-pink ms-2">Búsqueda: "{searchTerm}"</span>}
-                {activeFilter !== 'all' && <span className="badge bg-blue ms-2">{activeFilter}</span>}
+                {activeFilter !== 'all' && <span className="badge bg-blue ms-2">{activeFilter === 'outofstock' ? 'Agotados' : activeFilter}</span>}
                 {genreFilter !== 'all' && <span className="badge bg-gold ms-2">Género: {genreFilter}</span>}
               </div>
               <button 
@@ -275,10 +269,10 @@ const handleAddToCart = async (e, product) => {
                     )}
                     
                     <span className={`badge position-absolute bottom-0 start-0 m-2 ${
-                      product.format === 'Vinyl' ? 'bg-pink' : 
-                      product.format === 'CD' ? 'bg-blue' : 'bg-gold'
+                      getFormatoDisplay(product) === 'Vinyl' ? 'bg-pink' : 
+                      getFormatoDisplay(product) === 'CD' ? 'bg-blue' : 'bg-gold'
                     }`}>
-                      {product.format}
+                      {getFormatoDisplay(product)}
                     </span>
                     
                     <span className="badge bg-dark position-absolute bottom-0 end-0 m-2">

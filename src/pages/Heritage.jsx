@@ -1,14 +1,14 @@
-// src/pages/Heritage.jsx - VERSIÓN FINAL
+// src/pages/Heritage.jsx - VERSIÓN CORREGIDA
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Heritage = () => {
-  const { adminProducts, addToCart, isLoggedIn } = useApp();
+  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp();
   
   const heritageProducts = adminProducts.filter(product => product.heritage);
 
-  const handleAddToCart = (e, product) => {
+  const handleAddToCart = async (e, product) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -17,22 +17,45 @@ const Heritage = () => {
       return;
     }
     
-    if (product.stock === 0) {
+    if (product.stock <= 0) {
       alert(`😔 "${product.title}" está agotado`);
       return;
     }
     
-    const result = addToCart(product);
+    const result = await addToCart(product);
     if (result.success) {
       alert(`✅ ${product.title} agregado al carrito`);
+      await refreshProducts();
+    } else {
+      alert(`❌ ${result.message}`);
     }
   };
 
-  // Determinar clase del botón
   const getButtonClass = (product) => {
-    if (product.stock === 0) return 'btn-adaptivo btn-sin-stock';
+    if (product.stock <= 0) return 'btn-adaptivo btn-sin-stock';
     if (!isLoggedIn) return 'btn-adaptivo btn-sin-sesion';
     return 'btn-adaptivo btn-con-sesion';
+  };
+
+  // ✅ FUNCIÓN CORREGIDA - Obtener formato real del producto
+  const getFormatoDisplay = (product) => {
+    return product.formato || product.format || 'Vinilo';
+  };
+
+  // ✅ FUNCIÓN CORREGIDA - Obtener color según formato
+  const getFormatColor = (product) => {
+    const formato = getFormatoDisplay(product);
+    switch(formato) {
+      case 'Vinyl':
+      case 'Vinilo':
+        return 'bg-pink';
+      case 'CD':
+        return 'bg-blue';
+      case 'Cassette':
+        return 'bg-gold';
+      default:
+        return 'bg-secondary';
+    }
   };
 
   return (
@@ -94,7 +117,7 @@ const Heritage = () => {
           {heritageProducts.map(product => (
             <div key={product.id} className="col">
               <Link to={`/album/${product.id}`} className="text-decoration-none">
-                <div className="format-item-card heritage-card clickable-card">
+                <div className={`format-item-card heritage-card clickable-card ${product.stock <= 0 ? 'out-of-stock' : ''}`}>
                   <div 
                     className="format-item-image"
                     style={{
@@ -111,13 +134,27 @@ const Heritage = () => {
                       <i className="bi bi-shield-lock me-1"></i>LIMITADO
                     </span>
                     
-                    <span className="badge bg-pink position-absolute bottom-0 start-0 m-2">
-                      <i className="bi bi-vinyl me-1"></i>Vinyl
+                    {/* ✅ FORMATO CORREGIDO - Ya no muestra "Vinyl" fijo */}
+                    <span className={`badge ${getFormatColor(product)} position-absolute bottom-0 start-0 m-2`}>
+                      <i className="bi bi-disc me-1"></i>
+                      {getFormatoDisplay(product)}
                     </span>
                     
                     <span className="badge bg-dark position-absolute bottom-0 end-0 m-2">
                       {product.originalYear || product.year}
                     </span>
+
+                    {product.stock <= 0 && (
+                      <span className="badge bg-danger position-absolute top-0 end-0 m-2">
+                        ❌ AGOTADO
+                      </span>
+                    )}
+                    
+                    {product.stock > 0 && product.stock < 3 && (
+                      <span className="badge bg-warning text-dark position-absolute top-0 end-0 m-2">
+                        ⚠️ ÚLTIMAS {product.stock}
+                      </span>
+                    )}
                   </div>
                   
                   <div className="format-item-info">
@@ -135,27 +172,33 @@ const Heritage = () => {
                       </span>
                       <span className="badge bg-gold">
                         <i className="bi bi-award me-1"></i>
-                        {product.edition}
+                        {product.edition || 'Edición Limitada'}
                       </span>
                     </div>
                     
                     <div className="format-item-footer">
                       <div>
                         <span className="format-item-price">
-                          ${product.price.toFixed(2)}
+                          ${product.price?.toFixed(2)}
                         </span>
                         <small className="d-block text-light">
-                          Stock: <span className={product.stock < 3 ? 'text-danger' : 'text-success'}>
-                            {product.stock} unidades
-                          </span>
+                          {product.stock <= 0 ? (
+                            <span className="text-danger fw-bold">AGOTADO</span>
+                          ) : product.stock < 3 ? (
+                            <span className="text-warning">⚠️ Últimas {product.stock}</span>
+                          ) : (
+                            <span className="text-success">✅ Stock: {product.stock}</span>
+                          )}
                         </small>
                       </div>
                       
                       <button 
                         className={getButtonClass(product)}
                         onClick={(e) => handleAddToCart(e, product)}
+                        disabled={product.stock <= 0}
+                        style={product.stock <= 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                       >
-                        {product.stock === 0 ? (
+                        {product.stock <= 0 ? (
                           <i className="bi bi-x-circle"></i>
                         ) : !isLoggedIn ? (
                           <i className="bi bi-lock"></i>

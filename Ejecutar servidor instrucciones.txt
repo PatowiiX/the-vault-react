@@ -1,0 +1,7 @@
+# Navegar al directorio del proyecto (desde mi computadora, en todo caso cambien la dirección de donde lo hayan colocado) en su terminal
+cd C:\Users\patog\OneDrive\Desktop\the-vault-react
+
+# Iniciar el servidor con Re act, deben instalarlo de antemano( córranlo en cmd)
+cd C:\Users\patog\OneDrive\Desktop\the-vault-react (ruta de proyecto) npmstart - esto inicia el servidor
+
+Listo!
