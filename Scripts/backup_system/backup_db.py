@@ -1,42 +1,45 @@
-import os
+import subprocess
+from pathlib import Path
 from datetime import datetime
 from logger import escribir_log
 
-BACKUP_FOLDER = "backups"
+BASE_DIR = Path(__file__).resolve().parent
+BACKUP_FOLDER = BASE_DIR / "backups"
 MAX_BACKUPS = 3
 
 def backup_db():
     try:
-        if not os.path.exists(BACKUP_FOLDER):
-            os.makedirs(BACKUP_FOLDER)
-
+        BACKUP_FOLDER.mkdir(exist_ok=True)
         fecha = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        archivo = f"{BACKUP_FOLDER}/thevault_{fecha}.sql"
+        archivo = BACKUP_FOLDER / f"thevault_{fecha}.sql"
 
-        comando = f"mysqldump -u root -p 0000 > {archivo}" #contraseña
-        resultado = os.system(comando)
+        # OJO: Ya no ponemos la contraseña aquí. Asegúrate de poner el nombre de la BD al final.
+        comando = ["mysqldump", "--result-file", str(archivo), "nombre_de_tu_base_de_datos"]
+        
+        # subprocess.run es más seguro y captura errores reales
+        resultado = subprocess.run(comando, check=True, capture_output=True, text=True)
+        
+        escribir_log(f"Backup OK: {archivo.name}")
+        limpiar_backups()
+        print("Backup exitoso")
 
-        if resultado == 0:
-            escribir_log(f"Backup OK: {archivo}")
-            limpiar_backups()
-            print("Backup exitoso")
-        else:
-            escribir_log("ERROR: fallo mysqldump")
-
+    except subprocess.CalledProcessError as e:
+        # Si mysqldump falla, esto guardará el motivo real (ej. "Acceso denegado")
+        error_msg = f"ERROR: fallo mysqldump. Detalle: {e.stderr.strip()}"
+        escribir_log(error_msg)
+        print(error_msg)
     except Exception as e:
-        escribir_log(f"ERROR: {str(e)}")
+        escribir_log(f"ERROR GENERAL: {str(e)}")
         print("Error:", e)
 
-
 def limpiar_backups():
-    archivos = [
-        f for f in os.listdir(BACKUP_FOLDER) if f.endswith(".sql")
-    ]
-
-    # Ordenar por nombre (funciona porque usas fecha en el nombre)
-    archivos.sort()
+    # Solo listamos archivos .sql
+    archivos = sorted([f for f in BACKUP_FOLDER.glob("*.sql")])
 
     while len(archivos) > MAX_BACKUPS:
         viejo = archivos.pop(0)
-        os.remove(f"{BACKUP_FOLDER}/{viejo}")
-        escribir_log(f"Eliminado: {viejo}")
+        viejo.unlink() # Borra el archivo
+        escribir_log(f"Rotación: Eliminado {viejo.name}")
+
+
+#marco te amo- pavlo

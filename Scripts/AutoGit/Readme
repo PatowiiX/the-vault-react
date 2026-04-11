@@ -1,0 +1,48 @@
+# Ver quién causó el último auto-commit
+python3 git_automation.py auto audit --limit 5
+
+# Ver cola FIFO
+python3 git_automation.py auto fifo --show
+
+# Deshacer último auto-commit (preservando cambios)
+python3 git_automation.py auto rollback --keep-changes
+
+# Modificar mensaje del último commit
+python3 git_automation.py auto amend -m "Mensaje corregido"
+
+# Pausar auto-commit temporalmente
+python3 git_automation.py auto toggle --off
+
+# Reanudar auto-commit
+python3 git_automation.py auto toggle --on
+
+# Ver configuración actual
+python3 git_automation.py auto config --show
+
+# Cambiar límite de FIFO a 15
+python3 git_automation.py auto config --set max_fifo_size 15
+
+# Cambiar intervalo mínimo entre auto-commits a 10 minutos
+python3 git_automation.py auto config --set min_interval_minutes 10
+
+# En Python
+def procesar_datos():
+    df = load_data()
+    df_clean = clean_data(df)
+    df_clean.to_csv('output.csv')
+    #git-auto Procesamiento de datos completado
+
+# En JavaScript
+function updateUI() {
+    renderComponent();
+    //git-auto UI actualizada después de cambios
+}
+
+# En HTML
+<!--git-auto Sección de contacto actualizada-->
+
+# En CSS
+.button {
+    background: blue;
+}
+/*git-auto Estilos de botones mejorados*/

@@ -1,13 +1,16 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
-LOG_FOLDER = "logs"
+# Obtiene la ruta absoluta de donde está este archivo (backup_system/)
+BASE_DIR = Path(__file__).resolve().parent
+LOG_FOLDER = BASE_DIR / "logs"
 
 def escribir_log(mensaje):
-    if not os.path.exists(LOG_FOLDER):
-        os.makedirs(LOG_FOLDER)
+    # Crea la carpeta si no existe, sin dar error
+    LOG_FOLDER.mkdir(exist_ok=True)
 
-    archivo = f"{LOG_FOLDER}/backup.log"
+    archivo = LOG_FOLDER / "backup.log"
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with open(archivo, "a", encoding="utf-8") as f:
