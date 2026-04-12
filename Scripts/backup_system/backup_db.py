@@ -13,8 +13,11 @@ def backup_db():
         fecha = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         archivo = BACKUP_FOLDER / f"thevault_{fecha}.sql"
 
-        # OJO: Ya no ponemos la contraseña aquí. Asegúrate de poner el nombre de la BD al final.
-        comando = ["mysqldump", "--result-file", str(archivo), "nombre_de_tu_base_de_datos"]
+        # OJO: Ya no ponemos la contraseña aquí. Asegúrate de poner el nombre de la BD al final
+        #comando bieja pndj
+        #comando = ["mysqldump", "--result-file", str(archivo), "nombre_de_tu_base_de_datos"]
+        
+        comando = ["mysqldump", "-u", "root", "-p0000", "--result-file", str(archivo), "thevault"]
         
         # subprocess.run es más seguro y captura errores reales
         resultado = subprocess.run(comando, check=True, capture_output=True, text=True)

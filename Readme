@@ -1,0 +1,86 @@
+# the-vault-react
+
+Este proyecto es una aplicación web full-stack que utiliza React para el frontend y Express para el backend.
+
+ Requisitos e Instalación
+
+Para ejecutar este proyecto localmente, asegúrate de tener instalado [Node.js](https://nodejs.org/).
+
+1. Clonar el repositorio y entrar a la carpeta
+```bash
+git clone <https://github.com/PatowiiX/the-vault-react>
+cd the-vault-react
+
+2. Instalación de dependencias
+El proyecto utiliza un conjunto de librerías para el manejo de base de datos, seguridad y UI.
+Ejecuta el siguiente comando para instalar todo:
+
+npm install
+
+### Librerías Utilizadas ###
+Frontend (React)
+
+Core: react, react-dom (v19)
+
+Enrutamiento: react-router-dom
+
+Estilos: bootstrap, bootstrap-icons
+
+Métricas: web-vitals
+
+Backend (Node.js & Express)
+Servidor: express
+
+Seguridad: bcrypt (Para el hash de contraseñas)
+
+Variables de Entorno: dotenv
+
+Middleware: cors
+
+Base de Datos y Servicios
+Base de Datos: mysql2
+
+Envío de Correos: nodemailer, resend
+
+Testing
+@testing-library/react, @testing-library/jest-dom, @testing-library/user-event
+
+Guía por Sistema Operativo
+
+Windows 
+Si tienes problemas instalando bcrypt, asegúrate de tener instaladas las herramientas de compilación de C++. Puedes instalarlas ejecutando como administrador:
+
+PowerShell
+npm install --global --production windows-build-tools
+
+Linux (Ubuntu/Debian) 
+Es posible que necesites herramientas esenciales de compilación para las dependencias nativas:
+
+Bash
+sudo apt-get update
+sudo apt-get install build-essential python3
+Ejecución del Proyecto
+Para iniciar la aplicación en modo desarrollo:
+
+Bash
+npm start
+La aplicación se abrirá en http://localhost:3000.
+
+
+
+
+FINALIZADO, PERO SI NOTAN ALGUN BUG, REPORTEN O ARREGLEN!
+Si desean la nueva base de datos con los nuevas correcciones menores, haganmelo saber!!!
+2 bugs restantes: Vaciar inventario desde admin y mostrar no disponible en el panel de admin, todo lo demas, funcional!
+
+
+SI eres flojo y te dio peresa leer todo eso he preparado esto: 
+
+
+COMANDO PARA INSTALAR TODO EN WINDOWS:
+
+npm install; if ($?) { Write-Host "✅ Instalación completada con éxito" -ForegroundColor Green } else { Write-Host "❌ Hubo un error en la instalación" -ForegroundColor Red }
+
+COMANDO PARA INSTALAR TODO EL WINDOWS:
+
+sudo apt-get update && sudo apt-get install -y build-essential python3 && npm install && echo "✅ Instalación completada con éxito"
