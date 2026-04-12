@@ -1,36 +1,44 @@
 import subprocess
-import os
+import sys
 from pathlib import Path
 
-# Definir rutas base
+# --- RUTAS DE TU PROYECTO ---
 home = Path.expanduser(Path("~"))
 frontend_path = home / "LOCALGIT" / "the-vault-react"
 backend_path = frontend_path / "backend"
+# Ruta donde guardaste scheduler.py y git_scheduler.py
+scripts_path = frontend_path / "Scripts" 
 
-def run_command(cmd, working_dir):
-    """Ejecuta un comando y espera a que termine"""
-    subprocess.run(cmd, cwd=working_dir, shell=False)
+def start_everything():
+    print("🚀 Levantando el ecosistema The Vault (Producción)...")
+    
+    # 1. Aplicaciones Web
+    print("🌐 Levantando Backend y Frontend...")
+    subprocess.run(["pm2", "start", "server.js", "--name", "vault-backend"], cwd=backend_path)
+    subprocess.run(["pm2", "start", "npm", "--name", "vault-frontend", "--", "start"], cwd=frontend_path)
+    
+    # 2. Automatizaciones (Trabajadores de fondo)
+    print("⚙️ Levantando scripts de automatización...")
+    # Usamos interpreter python3 para asegurar que corren bien
+    subprocess.run(["pm2", "start", "scheduler.py", "--name", "vault-backups", "--interpreter", "python3"], cwd=scripts_path)
+    subprocess.run(["pm2", "start", "git_scheduler.py", "--name", "vault-autogit", "--interpreter", "python3"], cwd=scripts_path)
+    
+    # 3. Blindaje
+    subprocess.run(["pm2", "save"])
+    print("\n✅ ¡Los 4 motores están en línea!")
+    subprocess.run(["pm2", "status"])
 
-print("🧹 Limpiando procesos anteriores...")
-# Matamos todo lo que huela a Vault para empezar de cero
-subprocess.run(["pm2", "delete", "all"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def stop_everything():
+    print("🛑 Apagando todo el sistema y liberando RAM...")
+    subprocess.run(["pm2", "delete", "all"], stdout=subprocess.DEVNULL)
+    subprocess.run(["pm2", "save", "--force"])
+    print("💤 Sistema apagado completamente.")
 
-print("🚀 Iniciando The Vault desde cero (Debian Mode)...")
-
-# 1. Iniciar Backend (Node)
-# Usamos PM2 para que gestione los reinicios y logs automáticamente
-print("📦 Arrancando Backend...")
-run_command(["pm2", "start", "server.js", "--name", "vault-backend"], backend_path)
-
-# 2. Iniciar Frontend (React)
-print("💻 Arrancando Frontend...")
-run_command(["pm2", "start", "npm", "--name", "vault-frontend", "--", "start"], frontend_path)
-
-# 3. Guardar configuración para que persista
-subprocess.run(["pm2", "save"])
-
-print("\n✅ ¡Todo reiniciado con éxito!")
-print("📊 Estado actual de los procesos:")
-subprocess.run(["pm2", "status"])
-
-print("\n💡 Tip: Para ver los logs en tiempo real usa: 'pm2 logs'")
+# Controlador de argumentos
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "stop":
+        stop_everything()
+    else:
+        # Limpieza previa y encendido global
+        subprocess.run(["pm2", "delete", "all"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        start_everything()
