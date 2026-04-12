@@ -6,8 +6,11 @@ from pathlib import Path
 home = Path.expanduser(Path("~"))
 frontend_path = home / "LOCALGIT" / "the-vault-react"
 backend_path = frontend_path / "backend"
-# Ruta donde guardaste scheduler.py y git_scheduler.py
-scripts_path = frontend_path / "Scripts" 
+
+# ACTUALIZACIÓN: Rutas específicas para cada automatización
+scripts_path = frontend_path / "Scripts"
+autogit_path = scripts_path / "AutoGit"
+backups_path = scripts_path / "backup_system"
 
 def start_everything():
     print("🚀 Levantando el ecosistema The Vault (Producción)...")
@@ -19,9 +22,10 @@ def start_everything():
     
     # 2. Automatizaciones (Trabajadores de fondo)
     print("⚙️ Levantando scripts de automatización...")
-    # Usamos interpreter python3 para asegurar que corren bien
-    subprocess.run(["pm2", "start", "scheduler.py", "--name", "vault-backups", "--interpreter", "python3"], cwd=scripts_path)
-    subprocess.run(["pm2", "start", "git_scheduler.py", "--name", "vault-autogit", "--interpreter", "python3"], cwd=scripts_path)
+    
+    # IMPORTANTE: Ahora usamos las rutas específicas (cwd=backups_path y cwd=autogit_path)
+    subprocess.run(["pm2", "start", "scheduler.py", "--name", "vault-backups", "--interpreter", "python3"], cwd=backups_path)
+    subprocess.run(["pm2", "start", "git_scheduler.py", "--name", "vault-autogit", "--interpreter", "python3"], cwd=autogit_path)
     
     # 3. Blindaje
     subprocess.run(["pm2", "save"])
@@ -34,7 +38,6 @@ def stop_everything():
     subprocess.run(["pm2", "save", "--force"])
     print("💤 Sistema apagado completamente.")
 
-# Controlador de argumentos
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "stop":
         stop_everything()
