@@ -1,0 +1,64 @@
+# AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Elástica para Bursting de Tráfico - The Vault'
+
+Resources:
+  # 1. Balanceador de Carga (Punto de entrada para el excedente de usuarios)
+  VaultLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: 'TheVault-Burst-ALB'
+      Scheme: 'internet-facing'
+      SecurityGroups:
+        - !Ref WebSecurityGroup
+      Subnets:
+        - subnet-xxxxxx # Subnet pública A
+        - subnet-yyyyyy # Subnet pública B
+
+  # 2. Configuración de Lanzamiento (Qué se va a encender en AWS)
+  VaultLaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c02fb55956c7d316 # Debian/Amazon Linux 2
+      IamInstanceProfile: 'LabInstanceProfile' # Seguridad IAM LabRole
+      SecurityGroups:
+        - !Ref WebSecurityGroup
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Sincronización automática de código al encenderse
+          cd /home/ec2-user/the-vault
+          npm install
+          pm2 start ecosystem.yaml
+
+  # 3. Grupo de Auto-Escalamiento (Elasticidad real)
+  VaultAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      AutoScalingGroupName: 'TheVault-Elastic-ASG'
+      MinSize: '0' # Se mantiene en 0 hasta que el servidor local activa el burst
+      MaxSize: '5' # Escala hasta 5 instancias en la nube si es necesario
+      DesiredCapacity: '0'
+      LaunchConfigurationName: !Ref VaultLaunchConfiguration
+      TargetGroupARNs:
+        - !Ref VaultTargetGroup
+      VPCZoneIdentifier:
+        - subnet-xxxxxx
+        - subnet-yyyyyy
+
+  # 4. Almacenamiento Persistente S3 para Assets Compartidos
+  VaultGlobalS3:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub 'the-vault-hybrid-storage-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+
+  # 5. Seguridad de Red
+  WebSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Acceso Web y SSH'
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: 187.0.0.0/24 }

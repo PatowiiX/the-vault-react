@@ -1,0 +1,9 @@
+[2026-04-13 14:13:12] Backup OK: thevault_2026-04-13_14-13-12.sql
+[2026-04-13 14:38:23] ERROR: fallo mysqldump. Detalle: mysqldump: Got error: 2002: "Can't connect to local server through socket '/run/mysqld/mysqld.sock' (2)" when trying to connect
+[2026-04-13 15:04:28] Backup OK: thevault_2026-04-13_15-04-28.sql
+[2026-04-13 15:04:28] Rotación: Eliminado thevault_2026-04-12_15-25-14.sql
+[2026-04-13 15:04:28] Rotación: Eliminado thevault_2026-04-12_15-26-55.sql
+[2026-04-13 15:06:13] ERROR: fallo mysqldump. Detalle: mysqldump: Got error: 2002: "Can't connect to local server through socket '/run/mysqld/mysqld.sock' (2)" when trying to connect
+[2026-04-13 16:11:05] Backup OK: thevault_2026-04-13_16-11-05.sql
+[2026-04-13 16:11:05] Rotación: Eliminado thevault_2026-04-13_14-13-12.sql
+[2026-04-13 16:11:05] Rotación: Eliminado thevault_2026-04-13_14-38-22.sql
