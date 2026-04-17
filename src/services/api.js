@@ -1,5 +1,7 @@
 // src/services/api.js
-const API_URL = 'http://localhost:3001/api';
+
+//  Usar variable de entorno
+const API_URL = process.env.REACT_APP_API_URL;
 
 // 📦 SERVICIO DE DISCOS
 export const discosService = {
@@ -135,7 +137,7 @@ export const discosService = {
   }
 };
 
-// 📦 SERVICIO DE ÓRDENES (NUEVO)
+// 📦 SERVICIO DE ÓRDENES
 export const ordenesService = {
   // Obtener todas las órdenes (solo admin)
   getAll: async (admin = true) => {
@@ -150,7 +152,6 @@ export const ordenesService = {
       const data = await response.json();
       console.log("✅ Órdenes cargadas:", data.ordenes?.length || 0);
       
-      // Procesar cada orden para asegurar que items sea un array
       const ordenes = (data.ordenes || []).map(orden => ({
         ...orden,
         items: typeof orden.orden_items === 'string' 

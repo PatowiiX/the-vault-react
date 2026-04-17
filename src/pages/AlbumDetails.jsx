@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import SpotifyPreview from '../components/SpotifyPreview';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const AlbumDetails = () => {
   const { id } = useParams();

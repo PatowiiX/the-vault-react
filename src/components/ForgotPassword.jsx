@@ -15,7 +15,9 @@ const ForgotPassword = () => {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/password/forgot', {
+      //  Usar variable de entorno
+      const API_URL = process.env.REACT_APP_API_URL;
+      const response = await fetch(`${API_URL}/password/forgot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

@@ -29,7 +29,9 @@ const ResetPassword = () => {
     // Verificar que el token sea válido
     const verifyToken = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/password/verify-token', {
+        //  Usar variable de entorno
+        const API_URL = process.env.REACT_APP_API_URL;
+        const response = await fetch(`${API_URL}/password/verify-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: urlToken })
@@ -69,7 +71,9 @@ const ResetPassword = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/password/reset', {
+      // Usar variable de entorno
+      const API_URL = process.env.REACT_APP_API_URL;
+      const response = await fetch(`${API_URL}/password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password })
@@ -79,7 +83,6 @@ const ResetPassword = () => {
 
       if (data.ok) {
         setSuccess(true);
-        // ✅ CAMBIADO: Redirige al HOME en lugar de /login
         setTimeout(() => {
           navigate('/');
         }, 3000);
@@ -206,7 +209,6 @@ const ResetPassword = () => {
               )}
 
               <div className="text-center mt-4">
-                {/* ✅ CAMBIADO: Link al HOME en lugar de /login */}
                 <Link to="/" className="text-pink text-decoration-none">
                   <i className="bi bi-arrow-left me-2"></i>
                   Volver al inicio

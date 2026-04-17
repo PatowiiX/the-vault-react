@@ -146,7 +146,9 @@ function Home() {
     setSendStatus(null);
 
     try {
-      const response = await fetch('http://localhost:3001/api/contacto', {
+      // ✅ CORREGIDO: Usar variable de entorno
+      const API_URL = process.env.REACT_APP_API_URL;
+      const response = await fetch(`${API_URL}/contacto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

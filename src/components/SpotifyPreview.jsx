@@ -20,8 +20,10 @@ const SpotifyPreview = ({ albumTitle, artistName }) => {
     try {
       console.log("🔍 Buscando en Spotify:", albumTitle, artistName);
       
+      // ✅ CORREGIDO: Usar variable de entorno
+      const API_URL = process.env.REACT_APP_API_URL;
       const response = await fetch(
-        `http://127.0.0.1:3001/api/spotify/preview?query=${encodeURIComponent(albumTitle)}&artist=${encodeURIComponent(artistName)}`
+        `${API_URL}/spotify/preview?query=${encodeURIComponent(albumTitle)}&artist=${encodeURIComponent(artistName)}`
       );
       
       const data = await response.json();

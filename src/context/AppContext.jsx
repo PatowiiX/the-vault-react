@@ -4,7 +4,7 @@ import { discosService } from '../services/api';
 const AppContext = createContext();
 
 // URL base del backend
-const API_URL = 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL;
 
 export const AppProvider = ({ children }) => {
   const [adminProducts, setAdminProducts] = useState([]);
