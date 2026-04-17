@@ -81,6 +81,6 @@ COMANDO PARA INSTALAR TODO EN WINDOWS:
 
 npm install; if ($?) { Write-Host "✅ Instalación completada con éxito" -ForegroundColor Green } else { Write-Host "❌ Hubo un error en la instalación" -ForegroundColor Red }
 
-COMANDO PARA INSTALAR TODO EL WINDOWS:
+COMANDO PARA INSTALAR TODO EL LINUX:
 
 sudo apt-get update && sudo apt-get install -y build-essential python3 && npm install && echo "✅ Instalación completada con éxito"

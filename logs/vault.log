@@ -1,0 +1,8 @@
+2026-04-17 14:44:24 [DEBUG] Python3 encontrado en: /usr/bin/python3
+2026-04-17 14:44:25 [DEBUG] PM2 encontrado: [32m[PM2] [39mSpawning PM2 daemon with pm2_home=/home/perro/.pm2
+[32m[PM2] [39mPM2 Successfully daemonized
+6.0.14
+2026-04-17 14:44:25 [INFO] 🚀 Iniciando The Vault...
+2026-04-17 14:44:25 [INFO] Ejecutando pipeline command: start
+2026-04-17 14:44:27 [INFO] Comando 'start' ejecutado exitosamente
+2026-04-17 14:44:27 [INFO] ✅ The Vault iniciado correctamente
