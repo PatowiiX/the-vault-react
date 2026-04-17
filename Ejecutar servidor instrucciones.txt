@@ -3,5 +3,31 @@ cd C:\Users\patog\OneDrive\Desktop\the-vault-react
 
 # Iniciar el servidor con Re act, deben instalarlo de antemano( córranlo en cmd)
 cd C:\Users\patog\OneDrive\Desktop\the-vault-react (ruta de proyecto) npmstart - esto inicia el servidor
+COMANDOS DE EJECUCION=
+# Dar permisos de ejecución
+chmod +x main.sh
 
+# Ver ayuda
+./main.sh help
+
+# Iniciar el sistema
+./main.sh start
+
+# Ver estado
+./main.sh status
+
+# Verificar salud
+./main.sh health
+
+# Ver logs en tiempo real
+./main.sh logs
+
+# Reiniciar
+./main.sh restart
+
+# Detener
+./main.sh stop
+
+# Limpiar logs antiguos
+./main.sh clean-logs
 Listo!
