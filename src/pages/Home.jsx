@@ -8,7 +8,6 @@ function Home() {
     adminProducts, 
     addToCart, 
     isLoggedIn, 
-    cart, 
     calculateCartCount,
     refreshProducts
   } = useApp();

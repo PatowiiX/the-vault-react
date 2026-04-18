@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
@@ -14,6 +14,7 @@ const Cart = () => {
     calculateCartTax,
     calculateCartShipping,
     calculateCartGrandTotal,
+    processPayment,
     createPayPalOrder,
     saveCheckoutData,
     refreshProducts,
@@ -38,14 +39,7 @@ const Cart = () => {
   const [paymentMethod, setPaymentMethod] = useState('paypal'); // 'paypal' o 'saved_card'
   const [loadingMethods, setLoadingMethods] = useState(false);
 
-  // ✅ NUEVO: Cargar métodos de pago guardados
-  useEffect(() => {
-    if (isLoggedIn && currentUser) {
-      loadSavedPaymentMethods();
-    }
-  }, [isLoggedIn, currentUser]);
-
-  const loadSavedPaymentMethods = async () => {
+  const loadSavedPaymentMethods = useCallback(async () => {
     setLoadingMethods(true);
     const methods = await fetchPaymentMethods();
     setSavedPaymentMethods(methods);
@@ -53,7 +47,14 @@ const Cart = () => {
       setSelectedPaymentMethod(methods[0]);
     }
     setLoadingMethods(false);
-  };
+  }, [fetchPaymentMethods]);
+
+  // ✅ NUEVO: Cargar métodos de pago guardados
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      loadSavedPaymentMethods();
+    }
+  }, [currentUser, isLoggedIn, loadSavedPaymentMethods]);
 
   // Verificar stock antes de checkout
   useEffect(() => {
@@ -144,44 +145,32 @@ const Cart = () => {
     setProcessing(true);
     try {
       await refreshProducts();
-      
+
       const hasStockIssues = cart.some(item => item.quantity > item.stock);
       if (hasStockIssues) {
         alert('❌ El stock cambió. Por favor revisa tu carrito.');
         setProcessing(false);
         return;
       }
-      
-      // Preparar datos del checkout con método guardado
-      const datosCheckout = {
-        cart: cart,
+
+      const paymentResult = await processPayment({
         shippingAddress: shippingData,
-        total: calculateCartGrandTotal(),
-        subtotal: calculateCartTotal(),
-        tax: calculateCartTax(),
-        shipping: calculateCartShipping(),
-        usuario_id: currentUser?.id,
-        paymentMethod: 'saved_card',
-        savedCardId: selectedPaymentMethod.id,
-        cardLast4: selectedPaymentMethod.last4,
-        cardType: selectedPaymentMethod.type
-      };
-      
-      saveCheckoutData(datosCheckout);
-      sessionStorage.setItem('pendingCheckout', JSON.stringify(datosCheckout));
-      
-      // Aquí puedes procesar el pago con tu backend
-      // Por ahora, simulamos pago exitoso con tarjeta guardada
+        method: `saved_card:${selectedPaymentMethod.type}`
+      });
+
+      if (!paymentResult?.success) {
+        throw new Error(paymentResult?.message || 'No se pudo completar el pago');
+      }
+
+      sessionStorage.removeItem('pendingCheckout');
       alert(`✅ Pago procesado con tarjeta ${selectedPaymentMethod.type.toUpperCase()} terminada en ${selectedPaymentMethod.last4}`);
-      
-      // Redirigir a página de éxito
-      navigate('/pago-exitoso', { 
-        state: { 
-          orderId: 'ORDER-' + Date.now(),
-          total: calculateCartGrandTotal()
+
+      navigate('/pago-exitoso', {
+        state: {
+          orderId: paymentResult.orderId,
+          total: paymentResult.total
         }
       });
-      
     } catch (error) {
       alert('Error al procesar el pago: ' + error.message);
       console.error("Error detallado:", error);

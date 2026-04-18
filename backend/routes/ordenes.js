@@ -182,6 +182,21 @@ router.post("/", async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        for (const item of items) {
+            const [rows] = await connection.query(
+                "SELECT stock, titulo FROM discos WHERE id = ? FOR UPDATE",
+                [item.id]
+            );
+
+            if (rows.length === 0) {
+                throw new Error(`Producto "${item.title}" no encontrado`);
+            }
+
+            if (rows[0].stock < item.quantity) {
+                throw new Error(`Stock insuficiente para "${item.title}". Disponible: ${rows[0].stock}`);
+            }
+        }
+
         const trackingNumber = `TRK-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
         const estimatedDelivery = new Date();
         estimatedDelivery.setDate(estimatedDelivery.getDate() + 5);
@@ -207,6 +222,19 @@ router.post("/", async (req, res) => {
                 metodo_pago || 'paypal'
             ]
         );
+
+        for (const item of items) {
+            const [rows] = await connection.query(
+                "SELECT stock FROM discos WHERE id = ? FOR UPDATE",
+                [item.id]
+            );
+            const stockNuevo = rows[0].stock - item.quantity;
+
+            await connection.query(
+                "UPDATE discos SET stock = ? WHERE id = ?",
+                [stockNuevo, item.id]
+            );
+        }
 
         await connection.commit();
         connection.release();

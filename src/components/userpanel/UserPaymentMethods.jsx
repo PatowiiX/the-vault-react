@@ -22,12 +22,6 @@ const UserPaymentMethods = ({ methods, reloadMethods }) => {
     }
   };
 
-  const formatCardNumber = (number) => {
-    if (!number) return '';
-    const last4 = number.slice(-4);
-    return `**** **** **** ${last4}`;
-  };
-
   const handleAddPaymentMethod = async (e) => {
     e.preventDefault();
     setAdding(true);
@@ -186,8 +180,8 @@ const UserPaymentMethods = ({ methods, reloadMethods }) => {
         </div>
       ) : (
         <div>
-          {methods.map((method, idx) => (
-            <div key={idx} className="payment-method-card">
+          {methods.map((method) => (
+            <div key={method.id} className="payment-method-card">
               <div className="d-flex align-items-center">
                 <i className={`${getCardIcon(method.type)} payment-method-icon`}></i>
                 <div className="payment-method-info">

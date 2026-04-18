@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; 
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Header = () => {
@@ -15,6 +15,7 @@ const Header = () => {
   } = useApp();
   
   const navigate = useNavigate();
+  const location = useLocation();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loginData, setLoginData] = useState({ username_or_email: '', password: '' });
@@ -44,6 +45,29 @@ const Header = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showUserMenu]);
 
+  useEffect(() => {
+    if (location.pathname !== '/login') {
+      return;
+    }
+
+    if (isLoggedIn) {
+      navigate(location.state?.from || '/', { replace: true });
+      return;
+    }
+
+    setShowLoginModal(true);
+  }, [isLoggedIn, location.pathname, location.state, navigate]);
+
+  const closeLoginModal = () => {
+    setShowLoginModal(false);
+    setErrors({});
+    setSuccessMessage('');
+
+    if (location.pathname === '/login') {
+      navigate(location.state?.from || '/', { replace: true });
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrors({});
@@ -67,6 +91,9 @@ const Header = () => {
       setTimeout(() => {
         setShowLoginModal(false);
         setSuccessMessage('');
+        if (location.pathname === '/login') {
+          navigate(location.state?.from || '/', { replace: true });
+        }
       }, 1500);
     } else {
       setErrors({ loginGeneral: result.message });
@@ -533,11 +560,7 @@ const Header = () => {
                 <button 
                   type="button" 
                   className="btn-close btn-close-white" 
-                  onClick={() => {
-                    setShowLoginModal(false);
-                    setErrors({});
-                    setSuccessMessage('');
-                  }}
+                  onClick={closeLoginModal}
                 ></button>
               </div>
               

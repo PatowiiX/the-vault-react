@@ -3,8 +3,9 @@
 // ===============================
 require('dotenv').config();
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
-const db = require("./db");
+require("./db");
 const discosRoutes = require("./routes/discos");
 const usuariosRoutes = require("./routes/usuarios");
 const contactoRoutes = require("./routes/contacto");
@@ -19,6 +20,7 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 app.use("/images", express.static("images"));
+app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
 
 // RUTAS
 app.use("/api/discos", discosRoutes);

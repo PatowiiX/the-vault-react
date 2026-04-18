@@ -1,5 +1,5 @@
 // src/components/SpotifyPreview.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 
 const SpotifyPreview = ({ albumTitle, artistName }) => {
   const [embedUrl, setEmbedUrl] = useState(null);
@@ -7,13 +7,7 @@ const SpotifyPreview = ({ albumTitle, artistName }) => {
   const [error, setError] = useState(null);
   const [isEmbed, setIsEmbed] = useState(false);
 
-  useEffect(() => {
-    if (albumTitle && artistName) {
-      buscarEnSpotify();
-    }
-  }, [albumTitle, artistName]);
-
-  const buscarEnSpotify = async () => {
+  const buscarEnSpotify = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -41,7 +35,17 @@ const SpotifyPreview = ({ albumTitle, artistName }) => {
     }
     
     setLoading(false);
-  };
+  }, [albumTitle, artistName]);
+
+  useEffect(() => {
+    if (!albumTitle || !artistName) {
+      setLoading(false);
+      setEmbedUrl(null);
+      return;
+    }
+
+    buscarEnSpotify();
+  }, [albumTitle, artistName, buscarEnSpotify]);
 
   if (loading) {
     return (

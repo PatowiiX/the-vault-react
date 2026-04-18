@@ -5,6 +5,23 @@ const AppContext = createContext();
 
 // URL base del backend
 const API_URL = process.env.REACT_APP_API_URL;
+const API_BASE_URL = API_URL?.replace(/\/api\/?$/, '') || '';
+
+const buildAssetUrl = (assetPath) => {
+  if (!assetPath) return null;
+  if (/^https?:\/\//i.test(assetPath)) return assetPath;
+  return `${API_BASE_URL}${assetPath.startsWith('/') ? assetPath : `/${assetPath}`}`;
+};
+
+const normalizeUser = (user) => {
+  if (!user) return null;
+
+  return {
+    ...user,
+    avatar: buildAssetUrl(user.avatar),
+    isAdmin: user.isAdmin || user.rol === 'admin'
+  };
+};
 
 export const AppProvider = ({ children }) => {
   const [adminProducts, setAdminProducts] = useState([]);
@@ -27,10 +44,11 @@ export const AppProvider = ({ children }) => {
         
         const savedUser = localStorage.getItem('retrosound_user');
         if (savedUser) {
-          const user = JSON.parse(savedUser);
+          const user = normalizeUser(JSON.parse(savedUser));
           setIsLoggedIn(true);
           setCurrentUser(user);
-          setIsAdmin(user.isAdmin || user.rol === 'admin');
+          setIsAdmin(user.isAdmin);
+          localStorage.setItem('retrosound_user', JSON.stringify(user));
         }
         
         const savedCart = localStorage.getItem('retrosound_cart');
@@ -56,7 +74,7 @@ export const AppProvider = ({ children }) => {
       console.log("🔄 Refrescando productos desde backend...");
       const data = await discosService.getAll();
       setAdminProducts(data);
-      window.dispatchEvent(new Event('productsUpdated'));
+      window.dispatchEvent(new CustomEvent('productsUpdated', { detail: data }));
       return data;
     } catch (error) {
       console.error("❌ Error refrescando productos:", error);
@@ -87,10 +105,10 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.ok) {
-        const user = data.user;
+        const user = normalizeUser(data.user);
         setIsLoggedIn(true);
         setCurrentUser(user);
-        setIsAdmin(user.isAdmin || user.rol === 'admin');
+        setIsAdmin(user.isAdmin);
         localStorage.setItem('retrosound_user', JSON.stringify(user));
         return { success: true, message: `Bienvenido ${user.username || user.nombre}!` };
       } else {
@@ -307,9 +325,9 @@ export const AppProvider = ({ children }) => {
     );
   };
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCart([]);
-  };
+  }, []);
 
   // ===== CÁLCULOS DEL CARRITO =====
   const calculateCartTotal = useCallback(() => {
@@ -382,6 +400,8 @@ export const AppProvider = ({ children }) => {
   // ===== FUNCIONES DE PAGO =====
   const processPayment = useCallback(async (paymentDetails) => {
     try {
+      const grandTotal = calculateCartGrandTotal();
+
       const response = await fetch(`${API_URL}/ordenes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -401,11 +421,12 @@ export const AppProvider = ({ children }) => {
       
       if (data.ok) {
         clearCart();
+        await refreshProducts();
         return { 
           success: true, 
           orderId: data.orden_id,
           trackingNumber: data.tracking_number,
-          total: calculateCartGrandTotal()
+          total: grandTotal
         };
       } else {
         return { success: false, message: data.error };
@@ -414,7 +435,7 @@ export const AppProvider = ({ children }) => {
       console.error('Error en processPayment:', error);
       return { success: false, message: 'Error al procesar el pago' };
     }
-  }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart]);
+  }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal, clearCart, refreshProducts]);
 
   const createPayPalOrder = useCallback(async (orderData) => {
     try {
@@ -528,7 +549,7 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
       
       if (data.ok) {
-        const updatedUser = { ...currentUser, ...data.user };
+        const updatedUser = normalizeUser({ ...currentUser, ...data.user });
         setCurrentUser(updatedUser);
         localStorage.setItem('retrosound_user', JSON.stringify(updatedUser));
         return { success: true, user: updatedUser };
