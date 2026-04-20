@@ -46,13 +46,18 @@ start_tunnel() {
     # VALIDAR API
     # ================================
     echo "🔎 Validando API..."
+    echo "⏳ Dando tiempo a la red para propagar la URL (5s)..."
+    sleep 5
 
     STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api")
 
     if [ "$STATUS" == "200" ]; then
         echo "✅ API activa"
+    elif [ "$STATUS" == "404" ]; then
+        # 404 también es bueno, significa que Node contestó pero la ruta no existe
+        echo "✅ API activa (Respondió 404, backend en línea)"
     else
-        echo "⚠️ API respondió $STATUS (puede estar iniciando...)"
+        echo "⚠️ API respondió $STATUS"
     fi
 
     # ================================
@@ -83,7 +88,7 @@ start_tunnel() {
     # REINICIAR FRONTEND
     # ================================
     echo "🔄 Reiniciando frontend..."
-    pm2 restart vault-frontend
+    pm2 restart vault-frontend 2>/dev/null || echo "⚠️ PM2: Frontend no detectado (ignorando reinicio)"
 
     # ================================
     # OUTPUT FINAL
