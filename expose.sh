@@ -5,7 +5,7 @@
 # ================================
 PORT_API=3001
 PORT_WEB=3000
-ENV_FILE=".env.production"
+ENV_FILE=".env.development"
 LOG_API="tunnel_api.log"
 LOG_WEB="tunnel_web.log"
 PID_FILE=".cloudflared.pid"
