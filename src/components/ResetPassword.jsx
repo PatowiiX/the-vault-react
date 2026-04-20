@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -13,10 +13,11 @@ const ResetPassword = () => {
   
   const location = useLocation();
   const navigate = useNavigate();
+  const { token: routeToken } = useParams();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const urlToken = params.get('token');
+    const urlToken = params.get('token') || routeToken;
     
     if (!urlToken) {
       setError('Token no proporcionado');
@@ -52,7 +53,7 @@ const ResetPassword = () => {
     };
 
     verifyToken();
-  }, [location]);
+  }, [location, routeToken]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

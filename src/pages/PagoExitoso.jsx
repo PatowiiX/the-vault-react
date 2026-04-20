@@ -15,6 +15,17 @@ const PagoExitoso = () => {
 
   useEffect(() => {
     const procesarPago = async () => {
+      if (location.state?.orderId) {
+        setResult({
+          ok: true,
+          orden_id: location.state.orderId
+        });
+        clearCart();
+        sessionStorage.removeItem('pendingCheckout');
+        setProcessing(false);
+        return;
+      }
+
       // ✅ VERIFICAR SI YA SE PROCESÓ ESTE TOKEN
       const params = new URLSearchParams(location.search);
       const token = params.get('token');
@@ -117,7 +128,7 @@ const PagoExitoso = () => {
     };
 
     procesarPago();
-  }, [location.search, capturePayPalOrder, currentUser, clearCart, refreshProducts, navigate]);
+  }, [location.search, location.state, capturePayPalOrder, currentUser, clearCart, refreshProducts, navigate]);
 
   // ✅ CONTADOR PARA REDIRECCIÓN AUTOMÁTICA
   useEffect(() => {

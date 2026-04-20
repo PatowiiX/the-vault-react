@@ -5,13 +5,18 @@ const bcrypt = require('bcrypt');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const buildAvatarUrl = (req, avatarPath) => {
+    if (!avatarPath) return null;
+    if (/^https?:\/\//i.test(avatarPath)) return avatarPath;
+    return `${req.protocol}://${req.get('host')}${avatarPath.startsWith('/') ? avatarPath : `/${avatarPath}`}`;
+};
 
 const SALT_ROUNDS = 10; // Nivel de encriptación (10-12 es recomendado)
 
 // Configurar multer para subir fotos de perfil
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadDir = path.join(__dirname, '../public/uploads/avatars');
+        const uploadDir = path.join(__dirname, '../../public/uploads/avatars');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -121,7 +126,7 @@ router.post("/login", async (req, res) => {
                 username: user.nombre,
                 email: user.email,
                 nombre: user.nombre,
-                avatar: user.avatar || null,
+                avatar: buildAvatarUrl(req, user.avatar),
                 isAdmin: user.rol === 'admin',
                 created_at: user.created_at
             }
@@ -168,7 +173,10 @@ router.get("/:id/perfil", (req, res) => {
             
             res.json({
                 ok: true,
-                user: results[0]
+                user: {
+                    ...results[0],
+                    avatar: buildAvatarUrl(req, results[0].avatar)
+                }
             });
         }
     );
@@ -223,7 +231,10 @@ router.put("/:id/perfil", upload.single('avatar'), (req, res) => {
                 
                 res.json({
                     ok: true,
-                    user: results[0],
+                    user: {
+                        ...results[0],
+                        avatar: buildAvatarUrl(req, results[0].avatar)
+                    },
                     message: "Perfil actualizado correctamente"
                 });
             }

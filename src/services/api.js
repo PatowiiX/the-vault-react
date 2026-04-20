@@ -273,8 +273,10 @@ export const usuariosService = {
 };
 
 // Exportar todos los servicios
-export default {
+const apiServices = {
   discos: discosService,
   ordenes: ordenesService,
   usuarios: usuariosService
 };
+
+export default apiServices;
