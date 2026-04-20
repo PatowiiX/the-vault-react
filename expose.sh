@@ -1,129 +1,117 @@
+#!/bin/bash
+
 # ================================
-# CONFIG
+# CONFIGURACIÓN
 # ================================
-PORT=3001
+PORT_API=3001
+PORT_WEB=3000
 ENV_FILE=".env.production"
-LOG_FILE="tunnel_api.log"
+LOG_API="tunnel_api.log"
+LOG_WEB="tunnel_web.log"
 PID_FILE=".cloudflared.pid"
 
 # ================================
-# INICIAR TUNNEL
+# OBTENER URL DEL TÚNEL
 # ================================
-start_tunnel() {
-    echo "🚀 Iniciando túnel de Cloudflare..."
-
-    # Limpiar log previo
-    rm -f "$LOG_FILE"
-
-    # Lanzar túnel en background
-    cloudflared tunnel --url http://localhost:$PORT > "$LOG_FILE" 2>&1 &
-    TUNNEL_PID=$!
-
-    # Guardar PID
-    echo $TUNNEL_PID > "$PID_FILE"
-
-    echo "⏳ Esperando URL del túnel..."
-
-    # Espera inteligente (máx 15s)
+get_tunnel_url() {
+    local log_file=$1
+    local url=""
+    
     for i in {1..15}; do
-        API_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$LOG_FILE" | head -n 1)
-
-        if [ ! -z "$API_URL" ]; then
-            break
+        url=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$log_file" | head -n 1)
+        if [ ! -z "$url" ]; then
+            echo "$url"
+            return 0
         fi
-
         sleep 1
     done
+    return 1
+}
 
+# ================================
+# INICIAR TÚNELES
+# ================================
+start_tunnel() {
+    echo "========================================"
+    echo "🚀 INICIANDO DESPLIEGUE (THE VAULT)"
+    echo "========================================"
+
+    # Limpiar
+    rm -f "$LOG_API" "$LOG_WEB" "$PID_FILE"
+
+    # 1. Túnel del BACKEND
+    echo "⚙️ Levantando API (puerto $PORT_API)..."
+    cloudflared tunnel --url http://localhost:$PORT_API > "$LOG_API" 2>&1 &
+    echo $! > "$PID_FILE"
+
+    API_URL=$(get_tunnel_url "$LOG_API")
     if [ -z "$API_URL" ]; then
-        echo "❌ Error: No se pudo obtener la URL del túnel"
+        echo "❌ Error: No se pudo obtener URL del backend"
         exit 1
     fi
+    echo "✅ API: $API_URL"
 
-    echo "🌐 URL detectada: $API_URL"
-
-    # ================================
-    # VALIDAR API
-    # ================================
-    echo "🔎 Validando API..."
-    echo "⏳ Dando tiempo a la red para propagar la URL (5s)..."
-    sleep 5
-
-    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api")
-
-    if [ "$STATUS" == "200" ]; then
-        echo "✅ API activa"
-    elif [ "$STATUS" == "404" ]; then
-        # 404 también es bueno, significa que Node contestó pero la ruta no existe
-        echo "✅ API activa (Respondió 404, backend en línea)"
-    else
-        echo "⚠️ API respondió $STATUS"
-    fi
-
-    # ================================
-    # BACKUP .env
-    # ================================
-    if [ -f "$ENV_FILE" ]; then
-        cp "$ENV_FILE" "$ENV_FILE.bak"
-        echo "💾 Backup creado: $ENV_FILE.bak"
-    fi
-
-    # ================================
-    # ACTUALIZAR .env.production
-    # ================================
+    # 2. Actualizar .env y reiniciar frontend
     echo "✏️ Actualizando $ENV_FILE..."
-
     if [ -f "$ENV_FILE" ]; then
-        if grep -q "REACT_APP_API_URL=" "$ENV_FILE"; then
-        #te luciste con este comando marco
-            sed -i "s|REACT_APP_API_URL=.*|REACT_APP_API_URL=$API_URL/api|g" "$ENV_FILE"
-        else
-            echo "REACT_APP_API_URL=$API_URL/api" >> "$ENV_FILE"
-        fi
+        sed -i "s|REACT_APP_API_URL=.*|REACT_APP_API_URL=$API_URL/api|g" "$ENV_FILE"
     else
         echo "REACT_APP_API_URL=$API_URL/api" > "$ENV_FILE"
     fi
 
-    # ================================
-    # REINICIAR FRONTEND
-    # ================================
     echo "🔄 Reiniciando frontend..."
-    pm2 restart vault-frontend 2>/dev/null || echo "⚠️ PM2: Frontend no detectado (ignorando reinicio)"
+    pm2 restart vault-frontend 2>/dev/null || echo "⚠️ Frontend no está en PM2, ignorando"
+
+    # Pequeña pausa para que el frontend reinicie
+    sleep 2
+
+    # 3. Túnel del FRONTEND
+    echo "🎨 Levantando Web (puerto $PORT_WEB)..."
+    cloudflared tunnel --url http://localhost:$PORT_WEB > "$LOG_WEB" 2>&1 &
+    echo $! >> "$PID_FILE"
+
+    WEB_URL=$(get_tunnel_url "$LOG_WEB")
+    if [ -z "$WEB_URL" ]; then
+        echo "❌ Error: No se pudo obtener URL del frontend"
+        exit 1
+    fi
 
     # ================================
     # OUTPUT FINAL
     # ================================
-    echo -e "\n=============================="
-    echo -e "🌐 API: $API_URL"
-    echo -e "📁 ENV actualizado"
-    echo -e "🔄 Frontend reiniciado"
-    echo -e "==============================\n"
+    echo -e "\n========================================"
+    echo -e "🎉 DESPLIEGUE COMPLETADO 🎉"
+    echo -e "========================================"
+    echo -e "🌐 WEB (para la maestra):"
+    echo -e "👉 \033[1;32m$WEB_URL\033[0m"
+    echo -e "----------------------------------------"
+    echo -e "🔧 API (backend):"
+    echo -e "👉 $API_URL"
+    echo -e "========================================\n"
 }
 
 # ================================
-# DETENER TUNNEL
+# DETENER TÚNELES
 # ================================
 stop_tunnel() {
-    echo "🛑 Deteniendo túnel..."
-
-    # Por PID
+    echo "🛑 Deteniendo túneles..."
+    
     if [ -f "$PID_FILE" ]; then
-        kill $(cat "$PID_FILE") 2>/dev/null
+        while read pid; do
+            kill "$pid" 2>/dev/null
+        done < "$PID_FILE"
         rm -f "$PID_FILE"
-        echo "✅ Túnel detenido (PID)"
     fi
-
-    # Kill global por seguridad
-    if pgrep -f cloudflared > /dev/null; then
-        pkill -f cloudflared
-        echo "✅ Todos los túneles detenidos"
-    fi
-
-    rm -f "$LOG_FILE"
+    
+    # Por si acaso
+    pkill -f cloudflared 2>/dev/null
+    
+    rm -f "$LOG_API" "$LOG_WEB"
+    echo "✅ Túneles detenidos"
 }
 
 # ================================
-# ENTRY POINT (CLI)
+# CLI
 # ================================
 case "$1" in
     stop)
