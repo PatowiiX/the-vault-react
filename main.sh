@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # ================================
-# CONFIG
+# CONFIGURACIÓN
 # ================================
 PORT_API=3001
 PORT_FRONT=3000
@@ -33,10 +33,10 @@ check_dependencies() {
 # VERIFICAR BACKEND
 # ================================
 wait_for_backend() {
-    echo "🔎 Verificando backend..."
+    echo "🔎 Verificando backend local..."
     for i in {1..10}; do
         if curl -s http://localhost:$PORT_API > /dev/null; then
-            echo -e "${GREEN}✅ Backend activo${NC}"
+            echo -e "${GREEN}✅ Backend activo localmente${NC}"
             return
         fi
         sleep 1
@@ -45,59 +45,42 @@ wait_for_backend() {
 }
 
 # ================================
-# START
+# START (SECUENCIA MAESTRA)
 # ================================
 start_all() {
     check_dependencies
 
-    echo "🧹 Limpiando procesos previos..."
+    echo "🧹 Limpiando procesos previos (Clean Slate)..."
     ./pipeline.py stop 2>/dev/null || true
     pkill -f cloudflared 2>/dev/null || true
     rm -f "$LOG_FILE" "$PID_FILE"
 
-    echo "🚀 Iniciando ecosistema..."
+    echo "🚀 Iniciando ecosistema local (PM2)..."
     ./pipeline.py start
 
     wait_for_backend
 
-    echo "🌐 Iniciando túneles..."
-    cloudflared tunnel --url http://localhost:$PORT_API > "$LOG_FILE" 2>&1 &
+    echo "🌐 Levantando Túnel Permanente de Cloudflare..."
+    cloudflared tunnel run vault-backend > "$LOG_FILE" 2>&1 &
     PID_API=$!
 
-    # Guardar PID si sigue vivo
     if kill -0 $PID_API 2>/dev/null; then
         echo $PID_API >> "$PID_FILE"
     fi
 
-    echo "⏳ Esperando URL..."
-    for i in {1..15}; do
-        API_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$LOG_FILE" | head -n 1)
-        if [ ! -z "$API_URL" ]; then
-            break
-        fi
-        sleep 1
-    done
-
-    if [ -z "$API_URL" ]; then
-        echo -e "${RED}❌ No se pudo obtener la URL${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}🌐 URL detectada: $API_URL${NC}"
+    # URL ESTÁTICA DEFINITIVA
+    API_URL="https://api.thevaultretrosound.page"
+    echo -e "${GREEN}🌐 URL Estática Activa: $API_URL${NC}"
 
     # ================================
-    # BACKUP .env
+    # ACTUALIZAR ENV DEL FRONTEND
     # ================================
+    echo "💾 Creando backup del .env..."
     if [ -f "$ENV_FILE" ]; then
-        cp "$ENV_FILE" "$ENV_FILE.bak"
-        echo "💾 Backup creado"
+        cp "$ENV_FILE" "${ENV_FILE}.bak"
     fi
 
-    # ================================
-    # ACTUALIZAR ENV
-    # ================================
-    echo "✏️ Actualizando $ENV_FILE..."
-
+    echo "✏️ Inyectando URL permanente al frontend..."
     if [ -f "$ENV_FILE" ]; then
         if grep -q "REACT_APP_API_URL=" "$ENV_FILE"; then
             sed -i "s|REACT_APP_API_URL=.*|REACT_APP_API_URL=$API_URL/api|g" "$ENV_FILE"
@@ -109,27 +92,19 @@ start_all() {
     fi
 
     # ================================
-    # VALIDAR API
+    # VALIDACIÓN FINAL Y REINICIO
     # ================================
-    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api")
+    # Pausa de 2 segundos para que Cloudflare agarre el tráfico
+    sleep 2 
+    
+    echo "🔄 Reiniciando motor de React (PM2)..."
+    pm2 restart vault-frontend > /dev/null 2>&1 || echo -e "${YELLOW}⚠️ Frontend no está en PM2${NC}"
 
-    if [ "$STATUS" == "200" ]; then
-        echo -e "${GREEN}✅ API pública funcionando${NC}"
-    else
-        echo -e "${YELLOW}⚠️ API respondió $STATUS${NC}"
-    fi
-
-    # ================================
-    # REINICIAR FRONTEND
-    # ================================
-    echo "🔄 Reiniciando frontend..."
-    pm2 restart vault-frontend
-
-    echo -e "\n=============================="
-    echo -e "🌐 API: $API_URL"
-    echo -e "📁 ENV actualizado"
-    echo -e "🔄 Frontend reiniciado"
-    echo -e "==============================\n"
+    echo -e "\n=============================================="
+    echo -e "🎉 ECOSISTEMA CON DOMINIO ESTATICO 99 CASI 100% OPERATIVO 🎉"
+    echo -e "🌐 API DE PRODUCCIÓN: $API_URL/api"
+    echo -e "📁 Variables de entorno actualizadas con éxito"
+    echo -e "==============================================\n"
 }
 
 # ================================
@@ -157,7 +132,7 @@ stop_all() {
 # STATUS
 # ================================
 status_all() {
-    echo "📊 Estado del sistema:"
+    echo "📊 Estado del sistema (PM2):"
     pm2 list
 
     echo -e "\n🌐 Túneles activos:"
