@@ -5,9 +5,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
 
 # CONFIG
-BASE_URL = "https://SEXO.cloudflare.com"  #cambia esta jairo
+BASE_URL = "https://www.thevaultretrosound.page/"  #cambia esta jairo 
+#se me paso xd 
 #que riko el jairo perro
-ENDPOINT = "/api/usuarios/registro"
+ENDPOINT = "https://api.thevaultretrosound.page/api"
 
 TOTAL_REQUESTS = 100
 MAX_WORKERS = 20
