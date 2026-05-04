@@ -55,6 +55,14 @@ start_all() {
     pkill -f cloudflared 2>/dev/null || true
     rm -f "$LOG_FILE" "$PID_FILE"
 
+    # ==========================================
+    # NUEVO BLOQUE: SELECCIÓN DE ENTORNO DE BD
+    # ==========================================
+    echo "🌍 Configurando entorno de Base de Datos..."
+    # Cambia "aws" por "local" aquí cuando quieras usar tu MariaDB de nuevo
+    python3 env_switcher.py --mode aws 
+    # ==========================================
+
     echo "🚀 Iniciando ecosistema local (PM2)..."
     ./pipeline.py start
 
