@@ -5,10 +5,14 @@ Ticket: DEV-002 | Prioridad: MEDIA
 """
 
 import argparse
+import json
 import os
 import re
+import signal
 import sys
 import getpass
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ─── Colores ANSI ────────────────────────────────────────────────────────────
@@ -36,6 +40,8 @@ def print_info(msg: str) -> None:
 PROJECT_ROOT     = Path(__file__).resolve().parent
 ENV_FILE         = PROJECT_ROOT / ".env.development"
 CREDENTIALS_FILE = PROJECT_ROOT / ".aws_credentials"   # NO rastreado por Git
+STATE_FILE       = PROJECT_ROOT / ".env_switcher_state.json"
+DEFAULT_HEARTBEAT_SECONDS = 300
 
 # ─── Variables locales por defecto (sin secretos) ─────────────────────────────
 LOCAL_DEFAULTS = {
@@ -127,10 +133,67 @@ def apply_env_values(values: dict) -> None:
 
     ENV_FILE.write_text(content)
 
+
+def write_state(mode: str, status: str) -> None:
+    """
+    Persiste un estado pequeño para pipeline.py y para auditoria local.
+
+    No guarda secretos: solo modo, pid y timestamp. El archivo queda ignorado por
+    Git para que PM2 pueda actualizarlo en cada heartbeat sin ensuciar commits.
+    """
+    state = {
+        "mode": mode,
+        "status": status,
+        "pid": os.getpid(),
+        "env_file": str(ENV_FILE),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        STATE_FILE.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+    except OSError as exc:
+        print_warning(f"No se pudo escribir {STATE_FILE.name}: {exc}")
+
+
+def run_pm2_monitor(mode: str, heartbeat_seconds: int) -> None:
+    """
+    Mantiene env_switcher.py visible en PM2 despues del cambio de entorno.
+
+    El cambio real lo ejecuta pipeline.py en primer plano antes de levantar la
+    app. Este monitor no solicita credenciales ni reescribe el .env; existe para
+    que `pm2 list/status` muestre el proceso y su uso de CPU/MEM.
+    """
+    stop_requested = False
+    heartbeat_seconds = max(5, heartbeat_seconds)
+
+    def request_stop(signum, _frame):
+        nonlocal stop_requested
+        stop_requested = True
+        print_info(f"Senal {signum} recibida. Cerrando monitor PM2...")
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+
+    print_success(f"Monitor PM2 activo para entorno {mode.upper()}")
+    print_info(f"Heartbeat cada {heartbeat_seconds}s | PID {os.getpid()}")
+
+    while not stop_requested:
+        write_state(mode, "monitoring")
+        print_info(f"Heartbeat PM2 env_switcher | mode={mode} | env={ENV_FILE.name}")
+
+        for _ in range(heartbeat_seconds):
+            if stop_requested:
+                break
+            time.sleep(1)
+
+    write_state(mode, "stopped")
+    print_success("Monitor PM2 detenido correctamente")
+
 # ─── Modos ────────────────────────────────────────────────────────────────────
 def switch_to_local() -> None:
     print_info("Aplicando configuración LOCAL...")
     apply_env_values(LOCAL_DEFAULTS)
+    write_state("local", "applied")
     print_success("Entorno cambiado a LOCAL. Reinicia PM2 para aplicar los cambios.")
     print_info(f"  DB_HOST  → {LOCAL_DEFAULTS['DB_HOST']}")
     print_info(f"  DB_USER  → {LOCAL_DEFAULTS['DB_USER']}")
@@ -148,6 +211,7 @@ def switch_to_aws() -> None:
         "DB_PASSWORD": creds["DB_PASSWORD"],
     })
 
+    write_state("aws", "applied")
     print_success("Entorno cambiado a AWS. Reinicia PM2 para aplicar los cambios.")
     print_info(f"  DB_HOST  → {creds['DB_HOST']}")
     print_info(f"  DB_USER  → {creds['DB_USER']}")
@@ -165,6 +229,20 @@ def parse_args() -> argparse.Namespace:
         choices  = ["local", "aws"],
         help     = "Entorno destino: 'local' o 'aws'",
     )
+    parser.add_argument(
+        "--pm2-monitor",
+        action = "store_true",
+        help = (
+            "Mantiene el proceso vivo para que PM2 muestre env_switcher.py "
+            "y su consumo de recursos. No modifica el .env."
+        ),
+    )
+    parser.add_argument(
+        "--heartbeat",
+        type = int,
+        default = DEFAULT_HEARTBEAT_SECONDS,
+        help = "Segundos entre heartbeats del monitor PM2.",
+    )
     return parser.parse_args()
 
 
@@ -175,7 +253,9 @@ def main() -> None:
 
     args = parse_args()
 
-    if args.mode == "local":
+    if args.pm2_monitor:
+        run_pm2_monitor(args.mode, args.heartbeat)
+    elif args.mode == "local":
         switch_to_local()
     elif args.mode == "aws":
         switch_to_aws()

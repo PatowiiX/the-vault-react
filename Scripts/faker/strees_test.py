@@ -14,8 +14,9 @@ TOTAL_REQUESTS = 100
 MAX_WORKERS = 20
 TIMEOUT = 8
 MAX_CONSECUTIVE_FAILURES = 5
-
+#mandando a a llamar a faker
 fake = Faker()
+# semilla de faker para generar con reproducibilidad
 fake.seed_instance(42)  # para reproducibilidad
 
 # -------------------------------
@@ -31,9 +32,11 @@ def crear_usuario():
     start = time.time()
 
     try:
-        response = requests.post(
+        #correcion se paso de post a get xd
+        response = requests.get(
             f"{BASE_URL}{ENDPOINT}",
-            json=payload,
+            #correcion se paso de json a params xd
+            params=payload,
             timeout=TIMEOUT
         )
 

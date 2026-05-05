@@ -1,1 +1,19 @@
 Backup exitoso
+Backup exitoso
+Traceback (most recent call last):
+  File "/home/perro/LOCALGIT/the-vault-react/Scripts/backup_system/scheduler.py", line 7, in <module>
+    time.sleep(3600)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+Backup exitoso
+Traceback (most recent call last):
+  File "/home/perro/LOCALGIT/the-vault-react/Scripts/backup_system/scheduler.py", line 7, in <module>
+    time.sleep(3600)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+Backup exitoso
+Traceback (most recent call last):
+  File "/home/perro/LOCALGIT/the-vault-react/Scripts/backup_system/scheduler.py", line 7, in <module>
+    time.sleep(3600)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt

@@ -124,7 +124,7 @@ CREATE TABLE `contacto` (
   `mensaje` text NOT NULL,
   `fecha` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -137,7 +137,8 @@ LOCK TABLES `contacto` WRITE;
 INSERT INTO `contacto` VALUES
 (1,'DIDI','usuario@correo.com','Hola','2026-02-25 23:33:48'),
 (2,'Jairo','Tengohambre@correo.com','Soy un foraneo hambriento','2026-02-26 21:20:17'),
-(3,'Jairo','usuario@correo.com','Holaaaa','2026-02-27 04:32:39');
+(3,'Jairo','usuario@correo.com','Holaaaa','2026-02-27 04:32:39'),
+(4,'Elber galarga','braulio.1234505@gmail.com','Tiene descuento de estudiante ?','2026-04-29 19:24:46');
 /*!40000 ALTER TABLE `contacto` ENABLE KEYS */;
 UNLOCK TABLES;
 COMMIT;
@@ -169,7 +170,7 @@ CREATE TABLE `discos` (
   `edition` varchar(100) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -192,12 +193,14 @@ INSERT INTO `discos` VALUES
 (10,'The Works','Queen','Rock','CD','https://m.media-amazon.com/images/I/61Mr+SoLzKL._UF1000,1000_QL80_.jpg',1983,'Undécimo álbum de estudio de Queen, marcó el esperado regreso de la banda a sus raíces de rock, pero con un toque moderno y electrónico.',0,350.00,10,0,10,'45:00','VAULT-001',NULL,'2026-03-02 22:51:54'),
 (11,'Pisces Iscariot','The Smashing Pumpkins','Alternative','Vinyl','https://m.media-amazon.com/images/I/31r-6qWc-CL._UF1000,1000_QL80_.jpg',1994,'Colección de caras B y rarezas de The Smashing Pumpkins. \nReúne descartes de Gish y Siamese Dream, destacando temas como \"Landslide\" y \"Starla\".\n',1,255.00,15,0,10,'45:00','VAULT-001',NULL,'2026-03-02 22:56:06'),
 (12,'Ritchie Blackmore\'s Rainbow','Rainbow','Rock','Cassette','https://m.media-amazon.com/images/I/41evODrqSIL._UF1000,1000_QL80_.jpg',1975,'Lanzado en 1975, es el debut de la banda liderada por Ritchie Blackmore tras dejar Deep Purple. Fusiona hard rock con tintes medievales y cuenta con la voz magistral de Ronnie James Dio.',1,450.00,19,0,10,'45:00','VAULT-001',NULL,'2026-03-02 23:00:27'),
-(13,'Sgt Pepper\'s Lonely Hearts Club Band','The Beatles','Rock','Cassette','https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Sgt._Pepper%27s_Lonely_Hearts_Club_Band_album_art.jpg/1280px-Sgt._Pepper%27s_Lonely_Hearts_Club_Band_album_art.jpg',1976,'Lanzado en 1967, es la obra de The Beatles que revolucionó la música moderna al popularizar el concepto de álbum conceptual. ',0,299.00,9,0,10,'45:00','VAULT-001',NULL,'2026-03-02 23:19:48'),
+(13,'Sgt Pepper\'s Lonely Hearts Club Band','The Beatles','Rock','Cassette','https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Sgt._Pepper%27s_Lonely_Hearts_Club_Band_album_art.jpg/1280px-Sgt._Pepper%27s_Lonely_Hearts_Club_Band_album_art.jpg',1967,'Lanzado en 1967, es la obra de The Beatles que revolucionó la música moderna al popularizar el concepto de álbum conceptual. ',0,299.00,9,0,10,'45:00','VAULT-001',NULL,'2026-03-02 23:19:48'),
 (14,'Diver Down','Van Halen','Rock','Cassette','https://upload.wikimedia.org/wikipedia/commons/d/d4/Van_Halen_-_Diver_Down.svg',1982,'Álbum de Van Halen (1982) dominado por covers y éxitos radiales. Es el disco más corto y espontáneo de la era de David Lee Roth.',0,300.00,15,0,10,'45:00','VAULT-001',NULL,'2026-03-02 23:23:20'),
 (15,'Good','Michael Jackson','Pop','Vinyl','https://preview.redd.it/8wn980x0zif71.png?auto=webp&s=46660ae9c62843ae19254bce9b638f190f7d9e45',1985,'Es bueno, es bueno, lo sabes.',1,29.00,10,0,10,'45:00','VAULT-001',NULL,'2026-03-03 22:07:25'),
 (16,'Carnavas','Silversun Pickups','Rock','CD','https://m.media-amazon.com/images/I/81-snUL6kGL._UF1000,1000_QL80_.jpg',2006,'Referente del shoegaze/indie rock contemporáneo. Destaca por su arquitectura sonora de capas densas de distorsión, estructuras dinámicas de \"suave-fuerte\" y una producción atmosférica que evoca el rock alternativo de los 90.\n',0,350.00,11,0,11,'55 minutos','V-1597',NULL,'2026-04-09 19:45:43'),
 (17,'Under The Iron Sea','Keane','Alternative','Vinyl','https://m.media-amazon.com/images/I/61Vy9dqBpLL._UF1000,1000_QL80_.jpghttps://m.media-amazon.com/images/I/61Vy9dqBpLL._UF1000,1000_QL80_.jpg',2006,'Segundo álbum de estudio de la banda británica. Se caracteriza por una atmósfera oscura, introspectiva y experimental, alejándose del optimismo de su debut. Es una obra conceptual que utiliza la metáfora de un \"mar de hierro\" para explorar temas de alienación, guerra y conflictos internos.',0,400.00,15,0,12,'50:30','V-K34n3',NULL,'2026-04-09 19:48:43'),
-(18,'Even Worse',' \"Weird Al\" Yankovic','Pop','CD','https://upload.wikimedia.org/wikipedia/en/4/4c/Weird_Al_Yankovic_-_Even_Worse.jpg',1988,'Even Worse is the fifth studio album by the American parody musician \"Weird Al\" Yankovic, released on April 12, 1988. The album was produced by former The McCoys guitarist Rick Derringer. Recorded between November 1987 and February 1988, this album helped to revitalize Yankovic\'s career after the critical and commercial failure of his previous album Polka Party! (1986).',1,69.69,67,0,3,'21.32','1684531',NULL,'2026-04-12 02:03:06');
+(18,'Even Worse',' \"Weird Al\" Yankovic','Pop','CD','https://upload.wikimedia.org/wikipedia/en/4/4c/Weird_Al_Yankovic_-_Even_Worse.jpg',1988,'Even Worse is the fifth studio album by the American parody musician \"Weird Al\" Yankovic, released on April 12, 1988. The album was produced by former The McCoys guitarist Rick Derringer. Recorded between November 1987 and February 1988, this album helped to revitalize Yankovic\'s career after the critical and commercial failure of his previous album Polka Party! (1986).',1,69.69,67,0,3,'21.32','1684531',NULL,'2026-04-12 02:03:06'),
+(19,'Bad','Michael Jackson','Pop','CD','https://m.media-amazon.com/images/I/71oq0-EyC1L._UF1000,1000_QL80_.jpg',1987,'Bad es el séptimo álbum de estudio del cantante estadounidense Michael Jackson, publicado el 31 de agosto de 1987 por Epic Records. El álbum fue escrito y grabado en un periodo de casi un año y marcó la colaboración final entre el intérprete y el productor Quincy Jones. Jackson se involucró como coproductor y compuso nueve de los diez temas del álbum, dos de los cuales son duetos. Experimentando con ingeniería de sonido moderna, el tándem incorporó géneros como rock, funk, R&B, dance, soul y hard rock, con implementos como sintetizadores y cajas de ritmos. Bad además explora una variedad de temáticas, incluyendo el sesgo mediático, la paranoia, la discriminación racial, el romance, la superación personal y la paz mundial.',1,666.00,69,0,10,'45:00','857378790',NULL,'2026-04-18 17:24:42'),
+(20,'Definitely Maybe','Oasis','Rock','CD','https://m.media-amazon.com/images/I/71HlyaJtSIL._AC_UF1000,1000_QL80_.jpg',1994,'Album debut de la banda britanica Oasis, con exitos como Live Forever y Slide Away.',0,300.00,10,0,11,'51:57','OASIS1994',NULL,'2026-04-29 21:48:00');
 /*!40000 ALTER TABLE `discos` ENABLE KEYS */;
 UNLOCK TABLES;
 COMMIT;
@@ -463,7 +466,7 @@ CREATE TABLE `usuarios` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -480,7 +483,10 @@ INSERT INTO `usuarios` VALUES
 (4,'usuario2','usuario2@correo.mx','789456123','user',NULL,'2026-02-26 23:04:32'),
 (5,'PatowiiX','patogamecubeawesome@gmail.com','Mazdaspeed3','user',NULL,'2026-02-27 04:54:59'),
 (6,'PatowiiX2','psgamerfanclub@gmail.com','Contraseñasupersegura','user',NULL,'2026-02-27 05:07:53'),
-(7,'P.Rivera1','jpabloriveraarenas@gmail.com','AlbumBlanco123','user',NULL,'2026-03-02 23:11:11');
+(7,'P.Rivera1','jpabloriveraarenas@gmail.com','AlbumBlanco123','user',NULL,'2026-03-02 23:11:11'),
+(8,'Elber galarga miagarras','braulio.1234505@gmail.com','$2b$10$bOkuMLANvHfXs9V6TVCmo.nMnTc2I0fmFI8gysJgxqOjd0PrHkRrC','user',NULL,'2026-04-29 19:38:58'),
+(9,'PERRO ','jairo2030antonio007@gmail.com','$2b$10$.fFW0cyOG2EFCg6rYqFbC.PiuH.QDW5c22etn5IoqsIQuXjrcL9pm','user',NULL,'2026-04-29 21:47:01'),
+(10,'TU PAPI GOLOSO','marcodeath64@gmail.com','$2b$10$RRrLMGcyd3IAMnPkZ/pg0OuLLTHXAW1Rrpn3813Ej1gc1h5hxTJ/q','user',NULL,'2026-04-29 21:55:15');
 /*!40000 ALTER TABLE `usuarios` ENABLE KEYS */;
 UNLOCK TABLES;
 COMMIT;
@@ -495,4 +501,4 @@ SET AUTOCOMMIT=@OLD_AUTOCOMMIT;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-04-17 14:44:26
+-- Dump completed on 2026-05-04 17:27:02

@@ -3,3 +3,38 @@
 ✅ Resend configurado para recuperación de contraseña
 Servidor listo en http://localhost:3001
 ✅ Conectado a MySQL (vault)
+◇ injected env (10) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+Servidor listo en http://localhost:3001
+✅ Conectado a MySQL (vault)
+◇ injected env (10) from .env // tip: ⌘ override existing { override: true }
+Servidor listo en http://localhost:3001
+✅ Conectado a MySQL (vault)
+🎵 Buscando: Even Worse -  "Weird Al" Yankovic
+✅ Token Spotify obtenido: BQDSUxEkmrCLIBSu4Icq...
+📦 Encontrados 3 resultados
+✅ Match: Even Worse - 2pHmvW8zaVfxHJaEjkeAsS
+🎵 Buscando: Good - Michael Jackson
+📦 Encontrados 3 resultados
+✅ Match: HIStory - PAST, PRESENT AND FUTURE - BOOK I - 3OBhnTLrvkoEEETjFA3Qfk
+🎵 Buscando: Good - Michael Jackson
+📦 Encontrados 3 resultados
+✅ Match: HIStory - PAST, PRESENT AND FUTURE - BOOK I - 3OBhnTLrvkoEEETjFA3Qfk
+◇ injected env (10) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+Servidor listo en http://localhost:3001
+✅ Conectado a MySQL (vault)
+🎵 Buscando: Bad - Michael Jackson
+✅ Token Spotify obtenido: BQDguZsDpX8S_i63f-Fl...
+📦 Encontrados 3 resultados
+✅ Match: Bad (Remastered) - 3Us57CjssWnHjTUIXBuIeH
+🎵 Buscando: Even Worse -  "Weird Al" Yankovic
+📦 Encontrados 3 resultados
+✅ Match: Even Worse - 2pHmvW8zaVfxHJaEjkeAsS
+🎵 Buscando: Pisces Iscariot - The Smashing Pumpkins
+📦 Encontrados 3 resultados
+✅ Match: Pisces Iscariot (Deluxe) - 7glwer1Pzyns4h32fHbl53
+🎵 Buscando: Bad - Michael Jackson
+📦 Encontrados 3 resultados
+✅ Match: Bad (Remastered) - 3Us57CjssWnHjTUIXBuIeH
+🎵 Buscando: Ritchie Blackmore's Rainbow - Rainbow
+📦 Encontrados 3 resultados
+✅ Match: Ritchie Blackmore's Rainbow - 3LXOrVXLXwRiOguE446OZo

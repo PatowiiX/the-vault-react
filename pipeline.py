@@ -12,6 +12,7 @@ import time
 import json
 import signal
 import os
+import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -31,9 +32,15 @@ class Config:
     AUTOGIT_DIR = SCRIPTS_DIR / "AutoGit"
     BACKUPS_DIR = SCRIPTS_DIR / "backup_system"
     LOGS_DIR = BASE_DIR / "logs"
+    ENV_SWITCHER_SCRIPT = BASE_DIR / "env_switcher.py"
+    ENV_SWITCHER_HEARTBEAT = 300
+    PYTHON_BIN = sys.executable or "python3"
+    VALID_ENV_MODES = ("local", "aws")
+    DEFAULT_ENV_MODE = os.environ.get("VAULT_DB_ENV", "aws").lower()
     
     # Nombres de procesos PM2
     PM2_NAMES = {
+        'env_switcher': 'vault-env-switcher',
         'backend': 'vault-backend',
         'frontend': 'vault-frontend',
         'backups': 'vault-backups',
@@ -110,14 +117,15 @@ class VaultOrchestrator:
             'Backend': Config.BACKEND_DIR,
             'Scripts': Config.SCRIPTS_DIR,
             'AutoGit': Config.AUTOGIT_DIR,
-            'Backups': Config.BACKUPS_DIR
+            'Backups': Config.BACKUPS_DIR,
+            'Env switcher': Config.ENV_SWITCHER_SCRIPT
         }
         
         missing_paths = []
         for name, path in required_paths.items():
             if not path.exists():
                 missing_paths.append(f"{name}: {path}")
-                self.logger.warning(f"Directorio no encontrado: {path}")
+                self.logger.warning(f"Ruta no encontrada: {path}")
         
         if missing_paths:
             self.logger.warning(f"Faltan {len(missing_paths)} directorios")
@@ -204,8 +212,64 @@ class VaultOrchestrator:
         
         self.logger.error(f"❌ {process_name} no alcanzó estado {expected_state} en {timeout}s")
         return False
+
+    def _apply_database_environment(self, env_mode: str) -> bool:
+        """
+        Aplicar el entorno de base de datos antes de levantar Node/React.
+
+        env_switcher.py puede pedir credenciales la primera vez que se usa AWS,
+        por eso se ejecuta en primer plano y con stdin/stdout heredados. Despues
+        se crea un monitor PM2 separado para que la tabla de PM2 muestre el
+        script y sus recursos sin bloquear prompts interactivos.
+        """
+        print(f"🌍 Aplicando entorno de Base de Datos: {env_mode.upper()}...")
+
+        try:
+            result = subprocess.run(
+                [Config.PYTHON_BIN, str(Config.ENV_SWITCHER_SCRIPT), "--mode", env_mode],
+                cwd=Config.BASE_DIR
+            )
+        except Exception as exc:
+            self.logger.error(f"No se pudo ejecutar env_switcher.py: {exc}")
+            return False
+
+        if result.returncode != 0:
+            self.logger.error(f"env_switcher.py falló para modo {env_mode}")
+            return False
+
+        self.logger.info(f"Entorno de BD aplicado: {env_mode}")
+        return True
+
+    def _start_env_switcher_monitor(self, env_mode: str) -> bool:
+        """
+        Registrar env_switcher.py como proceso PM2 observable.
+
+        El monitor no cambia el .env; solo permanece vivo y emite heartbeats.
+        Asi `pm2 list` muestra `vault-env-switcher` junto con CPU/MEM.
+        """
+        print("🧭 Registrando Env Switcher en PM2...")
+
+        success, _ = self._run_command(
+            [
+                "pm2", "start", str(Config.ENV_SWITCHER_SCRIPT),
+                "--name", Config.PM2_NAMES['env_switcher'],
+                "--interpreter", Config.PYTHON_BIN,
+                "--log", str(Config.LOGS_DIR / "env_switcher.log"),
+                "--",
+                "--mode", env_mode,
+                "--pm2-monitor",
+                "--heartbeat", str(Config.ENV_SWITCHER_HEARTBEAT)
+            ],
+            cwd=Config.BASE_DIR
+        )
+
+        if not success:
+            self.logger.error("No se pudo registrar env_switcher.py en PM2")
+            return False
+
+        return self._wait_for_process(Config.PM2_NAMES['env_switcher'], 'online', timeout=10)
     
-    def start_ecosystem(self):
+    def start_ecosystem(self, env_mode: str = Config.DEFAULT_ENV_MODE):
         """Iniciar todo el ecosistema"""
         print("\n" + "="*60)
         print("🚀 THE VAULT - INICIANDO ECOSISTEMA")
@@ -220,6 +284,12 @@ class VaultOrchestrator:
         # Limpiar procesos previos
         self.logger.info("Limpiando procesos anteriores...")
         self._run_command(["pm2", "delete", "all"], check=False)
+
+        if not self._apply_database_environment(env_mode):
+            return False
+
+        if not self._start_env_switcher_monitor(env_mode):
+            return False
         
         # Iniciar backend (Node.js)
         print("📡 Levantando Backend...")
@@ -324,7 +394,7 @@ class VaultOrchestrator:
         print("\n💤 SISTEMA COMPLETAMENTE DETENIDO\n")
         return True
     
-    def restart_ecosystem(self):
+    def restart_ecosystem(self, env_mode: str = Config.DEFAULT_ENV_MODE):
         """Reiniciar todo el ecosistema"""
         print("\n" + "="*60)
         print("🔄 THE VAULT - REINICIANDO ECOSISTEMA")
@@ -335,7 +405,7 @@ class VaultOrchestrator:
         # Detener y luego iniciar
         if self.stop_ecosystem():
             time.sleep(3)
-            return self.start_ecosystem()
+            return self.start_ecosystem(env_mode)
         
         return False
     
@@ -405,28 +475,64 @@ def print_banner():
     """
     print(banner)
 
+def parse_args() -> argparse.Namespace:
+    """Parsear CLI manteniendo compatibilidad con `pipeline.py start aws`."""
+    default_env = (
+        Config.DEFAULT_ENV_MODE
+        if Config.DEFAULT_ENV_MODE in Config.VALID_ENV_MODES
+        else "aws"
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="pipeline.py",
+        description="Orquestador PM2 para el ecosistema The Vault.",
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=["start", "stop", "restart", "status", "health"],
+        help="Accion a ejecutar.",
+    )
+    parser.add_argument(
+        "env_positional",
+        nargs="?",
+        choices=Config.VALID_ENV_MODES,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--env",
+        dest="env_mode",
+        choices=Config.VALID_ENV_MODES,
+        default=default_env,
+        help=(
+            "Entorno de BD para start/restart. Tambien se puede definir con "
+            "VAULT_DB_ENV=local|aws."
+        ),
+    )
+
+    args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
+
+    if args.env_positional:
+        args.env_mode = args.env_positional
+
+    return args
+
 def main():
     """Punto de entrada principal"""
     print_banner()
-    
-    if len(sys.argv) < 2:
-        print("Uso: python3 pipeline.py [comando]")
-        print("\nComandos disponibles:")
-        print("  start   - Iniciar todo el ecosistema")
-        print("  stop    - Detener todo el ecosistema")
-        print("  restart - Reiniciar todo el ecosistema")
-        print("  status  - Mostrar estado actual")
-        print("  health  - Verificar salud del sistema")
-        sys.exit(1)
+    args = parse_args()
     
     orchestrator = VaultOrchestrator()
-    command = sys.argv[1].lower()
+    command = args.command.lower()
     
     # Mapeo de comandos
     commands = {
-        'start': orchestrator.start_ecosystem,
+        'start': lambda: orchestrator.start_ecosystem(args.env_mode),
         'stop': orchestrator.stop_ecosystem,
-        'restart': orchestrator.restart_ecosystem,
+        'restart': lambda: orchestrator.restart_ecosystem(args.env_mode),
         'status': orchestrator.status,
         'health': orchestrator.health_check
     }

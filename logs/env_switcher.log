@@ -1,0 +1,17 @@
+
+[1m[96m──────────────────────────────────────────────────
+   🔄  env_switcher.py  |  DEV-002
+──────────────────────────────────────────────────[0m
+
+[92m[1m✅ Monitor PM2 activo para entorno AWS[0m
+[96mℹ️  Heartbeat cada 300s | PID 5882[0m
+[96mℹ️  Heartbeat PM2 env_switcher | mode=aws | env=.env.development[0m
+[96mℹ️  Heartbeat PM2 env_switcher | mode=aws | env=.env.development[0m
+[96mℹ️  Heartbeat PM2 env_switcher | mode=aws | env=.env.development[0m
+[96mℹ️  Heartbeat PM2 env_switcher | mode=aws | env=.env.development[0m
+[96mℹ️  Heartbeat PM2 env_switcher | mode=aws | env=.env.development[0m
+[96mℹ️  Senal 2 recibida. Cerrando monitor PM2...[0m
+[92m[1m✅ Monitor PM2 detenido correctamente[0m
+
+[96m──────────────────────────────────────────────────[0m
+

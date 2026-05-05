@@ -10,6 +10,7 @@ PORT_FRONT=3000
 ENV_FILE=".env.development"
 LOG_FILE="tunnel.log"
 PID_FILE=".tunnel_pids"
+DEFAULT_DB_ENV="${VAULT_DB_ENV:-aws}"
 
 # Colores
 RED='\033[0;31m'
@@ -27,6 +28,27 @@ check_dependencies() {
             exit 1
         fi
     done
+}
+
+usage() {
+    echo "Uso: $0 {start|stop|restart|status} [local|aws|--env local|--env=aws]"
+    echo "Ejemplos:"
+    echo "  $0 start aws"
+    echo "  $0 start --env local"
+    echo "  $0 restart local"
+    echo "  VAULT_DB_ENV=local $0 start"
+}
+
+validate_env_mode() {
+    case "$1" in
+        local|aws)
+            ;;
+        *)
+            echo -e "${RED}❌ Entorno inválido: $1${NC}"
+            usage
+            exit 1
+            ;;
+    esac
 }
 
 # ================================
@@ -48,23 +70,20 @@ wait_for_backend() {
 # START (SECUENCIA MAESTRA)
 # ================================
 start_all() {
+    local db_env="${1:-$DEFAULT_DB_ENV}"
+
     check_dependencies
+    validate_env_mode "$db_env"
 
     echo "🧹 Limpiando procesos previos (Clean Slate)..."
     ./pipeline.py stop 2>/dev/null || true
     pkill -f cloudflared 2>/dev/null || true
     rm -f "$LOG_FILE" "$PID_FILE"
 
-    # ==========================================
-    # NUEVO BLOQUE: SELECCIÓN DE ENTORNO DE BD
-    # ==========================================
-    echo "🌍 Configurando entorno de Base de Datos..."
-    # Cambia "aws" por "local" aquí cuando quieras usar tu MariaDB de nuevo
-    python3 env_switcher.py --mode aws 
-    # ==========================================
-
-    echo "🚀 Iniciando ecosistema local (PM2)..."
-    ./pipeline.py start
+    echo "🚀 Iniciando ecosistema local (PM2) con BD ${db_env^^}..."
+    # pipeline.py aplica env_switcher.py en primer plano y registra
+    # vault-env-switcher en PM2 para que `pm2 list` muestre CPU/MEM del script.
+    ./pipeline.py start --env "$db_env"
 
     wait_for_backend
 
@@ -111,6 +130,7 @@ start_all() {
     echo -e "\n=============================================="
     echo -e "🎉 ECOSISTEMA CON DOMINIO ESTATICO 99 CASI 100% OPERATIVO 🎉"
     echo -e "🌐 API DE PRODUCCIÓN: $API_URL/api"
+    echo -e "🌍 ENTORNO DE BD: ${db_env^^}"
     echo -e "📁 Variables de entorno actualizadas con éxito"
     echo -e "==============================================\n"
 }
@@ -150,21 +170,43 @@ status_all() {
 # ================================
 # ENTRY POINT
 # ================================
-case "${1:-start}" in
+COMMAND="${1:-start}"
+DB_ENV_MODE="$DEFAULT_DB_ENV"
+
+case "${2:-}" in
+    local|aws)
+        DB_ENV_MODE="$2"
+        ;;
+    --env)
+        DB_ENV_MODE="${3:-}"
+        ;;
+    --env=*)
+        DB_ENV_MODE="${2#--env=}"
+        ;;
+    "")
+        ;;
+    *)
+        echo -e "${RED}❌ Parámetro no reconocido: $2${NC}"
+        usage
+        exit 1
+        ;;
+esac
+
+case "$COMMAND" in
     start)
-        start_all
+        start_all "$DB_ENV_MODE"
         ;;
     stop)
         stop_all
         ;;
     restart)
         stop_all
-        start_all
+        start_all "$DB_ENV_MODE"
         ;;
     status)
         status_all
         ;;
     *)
-        echo "Uso: $0 {start|stop|restart|status}"
+        usage
         ;;
 esac

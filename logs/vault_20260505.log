@@ -1,0 +1,19 @@
+2026-05-05 13:55:51 - VaultOrchestrator - INFO - Deteniendo orquestación del sistema
+2026-05-05 13:55:51 - VaultOrchestrator - ERROR - Error parseando respuesta de PM2
+2026-05-05 13:55:51 - VaultOrchestrator - INFO - No hay procesos activos para detener
+2026-05-05 13:55:51 - VaultOrchestrator - INFO - Iniciando orquestación del sistema
+2026-05-05 13:55:51 - VaultOrchestrator - INFO - Limpiando procesos anteriores...
+2026-05-05 13:55:52 - VaultOrchestrator - ERROR - Comando falló: pm2 delete all
+2026-05-05 13:55:52 - VaultOrchestrator - ERROR - Error: [33m[PM2][WARN] [39mNo process found
+
+2026-05-05 13:55:52 - VaultOrchestrator - INFO - Entorno de BD aplicado: aws
+2026-05-05 13:55:52 - VaultOrchestrator - INFO - ✅ vault-env-switcher está online
+2026-05-05 13:55:52 - VaultOrchestrator - INFO - ✅ vault-backend está online
+2026-05-05 13:55:53 - VaultOrchestrator - INFO - ✅ vault-frontend está online
+2026-05-05 13:55:53 - VaultOrchestrator - INFO - ✅ vault-backups está online
+2026-05-05 13:55:53 - VaultOrchestrator - INFO - ✅ vault-autogit está online
+2026-05-05 14:22:59 - VaultOrchestrator - INFO - Deteniendo orquestación del sistema
+2026-05-05 14:23:02 - VaultOrchestrator - ERROR - Comando falló: pm2 delete all
+2026-05-05 14:23:02 - VaultOrchestrator - ERROR - Error: [33m[PM2][WARN] [39mNo process found
+
+2026-05-05 14:23:04 - VaultOrchestrator - INFO - Todos los procesos detenidos correctamente
