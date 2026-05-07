@@ -1,11 +1,11 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom'; // ← Solo Routes, no BrowserRouter
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 
 // Layout Components
 import Header from './components/Header';
 
-// Pages (están en ./pages/)
+// Pages
 import Home from './pages/Home';
 import Boveda from './pages/Boveda';
 import Heritage from './pages/Heritage';
@@ -13,11 +13,12 @@ import Formatos from './pages/Formatos';
 import AlbumDetails from './pages/AlbumDetails';
 import MiCuenta from './pages/MiCuenta';
 
-// Components (los que SÍ existen en ./components/)
+// Components
 import Cart from './components/Cart';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import SearchBar from './components/SearchBar';
+import PagoExitoso from './pages/PagoExitoso'; //  IMPORTAR COMPONENTE
 
 // Admin Pages
 import AdminPanel from './components/admin/AdminPanel';
@@ -51,6 +52,9 @@ const AppRoutes = () => {
       <Route path="/buscar" element={<SearchBar />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
+      
+      {/* ✅ RUTA DE PAYPAL - IMPORTANTE */}
+      <Route path="/pago-exitoso" element={<PagoExitoso />} />
       
       {/* Protected Routes (require login) */}
       <Route path="/cart" element={

@@ -6,17 +6,24 @@ const DiscoCard = ({ product, showAddButton = true }) => {
   const navigate = useNavigate();
   const { addToCart } = useApp();
 
+  // ✅ Asegurar que el stock es un número y está actualizado
+  const stockActual = Number(product?.stock) || 0;
+  const isOutOfStock = stockActual <= 0;
+
   const handleCardClick = () => {
     navigate(`/disco/${product.id}`);
   };
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
+    if (isOutOfStock) {
+      alert(`❌ "${product.title}" está AGOTADO`);
+      return;
+    }
     const result = addToCart(product, 1);
     if (!result.success) {
       alert(result.message);
     } else {
-      // Mostrar feedback visual
       const btn = e.target;
       const originalText = btn.innerText;
       btn.innerText = '✓ AGREGADO';
@@ -26,8 +33,16 @@ const DiscoCard = ({ product, showAddButton = true }) => {
     }
   };
 
-  // Determinar si el producto está agotado
-  const isOutOfStock = product.stock === 0 || product.stock < 1;
+  // ✅ Función para mostrar el stock correctamente
+  const getStockDisplay = () => {
+    if (isOutOfStock) {
+      return <span style={{ color: '#ff4444', fontWeight: 'bold' }}>❌ AGOTADO</span>;
+    }
+    if (stockActual < 5) {
+      return <span style={{ color: '#ffaa00' }}>⚠️ ¡Últimas {stockActual}!</span>;
+    }
+    return <span style={{ color: '#4caf50' }}>✅ {stockActual} disponibles</span>;
+  };
 
   return (
     <div 
@@ -53,7 +68,7 @@ const DiscoCard = ({ product, showAddButton = true }) => {
         e.currentTarget.style.boxShadow = 'none';
       }}
     >
-      {/* Badge de AGOTADO si no hay stock */}
+      {/* Badge de AGOTADO en la esquina */}
       {isOutOfStock && (
         <div style={{
           position: 'absolute',
@@ -81,7 +96,9 @@ const DiscoCard = ({ product, showAddButton = true }) => {
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            transition: 'transform 0.3s'
+            transition: 'transform 0.3s',
+            filter: isOutOfStock ? 'grayscale(100%)' : 'none',
+            opacity: isOutOfStock ? 0.6 : 1
           }}
           onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
           onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -173,17 +190,10 @@ const DiscoCard = ({ product, showAddButton = true }) => {
           )}
         </div>
         
-        {/* Indicador de stock bajo */}
-        {!isOutOfStock && product.stock <= 3 && (
-          <p style={{
-            color: '#ffc107',
-            fontSize: '0.7rem',
-            marginTop: '8px',
-            marginBottom: '0'
-          }}>
-            ⚡ ¡Últimas {product.stock} unidades!
-          </p>
-        )}
+        {/* ✅ Stock display actualizado */}
+        <div style={{ marginTop: '8px' }}>
+          {getStockDisplay()}
+        </div>
       </div>
     </div>
   );
