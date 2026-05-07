@@ -10,7 +10,7 @@ BASE_URL = "https://www.thevaultretrosound.page/"  #cambia esta jairo
 #que riko el jairo perro
 ENDPOINT = "https://api.thevaultretrosound.page/api"
 
-TOTAL_REQUESTS = 100
+TOTAL_REQUESTS = 500
 MAX_WORKERS = 20
 TIMEOUT = 8
 MAX_CONSECUTIVE_FAILURES = 5
