@@ -5,18 +5,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
 
 # CONFIG
-BASE_URL = "https://www.thevaultretrosound.page/"  #cambia esta jairo 
-#se me paso xd 
-#que riko el jairo perro
 ENDPOINT = "https://api.thevaultretrosound.page/api"
 
 TOTAL_REQUESTS = 500
 MAX_WORKERS = 20
 TIMEOUT = 8
 MAX_CONSECUTIVE_FAILURES = 5
-#mandando a a llamar a faker
+
 fake = Faker()
-# semilla de faker para generar con reproducibilidad
 fake.seed_instance(42)  # para reproducibilidad
 
 # -------------------------------
@@ -32,10 +28,9 @@ def crear_usuario():
     start = time.time()
 
     try:
-        #correcion se paso de post a get xd
+        # Se corrigió la URL para golpear solo la API directamente
         response = requests.get(
-            f"{BASE_URL}{ENDPOINT}",
-            #correcion se paso de json a params xd
+            ENDPOINT,
             params=payload,
             timeout=TIMEOUT
         )
@@ -73,17 +68,27 @@ def crear_usuario():
 #  MODO DEMO 
 # -------------------------------
 def modo_demo():
-    print("\n MODO DEMO ACTIVADO\n")
+    print("\n🚀 MODO DEMO ACTIVADO\n")
 
     fallos_consecutivos = 0
+    exitos = 0
 
     for i in range(TOTAL_REQUESTS):
         resultado = crear_usuario()
 
-        if resultado in ["TIMEOUT", "SERVER_ERROR"]:
-            fallos_consecutivos += 1
-        else:
+        if resultado == "OK":
+            exitos += 1
             fallos_consecutivos = 0
+            
+            # MILESTONE 50 USUARIOS
+            if exitos == 50:
+                print(f"\n{'='*60}")
+                print("🔥 50 USUARIOS ALCANZADOS 🔥")
+                print("¡El tráfico está fluyendo hacia AWS RDS con éxito!")
+                print(f"{'='*60}\n")
+                
+        elif resultado in ["TIMEOUT", "SERVER_ERROR"]:
+            fallos_consecutivos += 1
 
         # 🚨 KILL SWITCH
         if fallos_consecutivos >= MAX_CONSECUTIVE_FAILURES:
@@ -97,9 +102,10 @@ def modo_demo():
 #  MODO ESTRÉS
 # -------------------------------
 def modo_estres():
-    print("\n MODO ESTRÉS ACTIVADO\n")
+    print("\n🔥 MODO ESTRÉS ACTIVADO\n")
 
     fallos_consecutivos = 0
+    exitos = 0
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [executor.submit(crear_usuario) for _ in range(TOTAL_REQUESTS)]
@@ -107,14 +113,23 @@ def modo_estres():
         for future in as_completed(futures):
             resultado = future.result()
 
-            if resultado in ["TIMEOUT", "SERVER_ERROR"]:
-                fallos_consecutivos += 1
-            else:
+            if resultado == "OK":
+                exitos += 1
                 fallos_consecutivos = 0
+                
+                # MILESTONE 50 USUARIOS
+                if exitos == 50:
+                    print(f"\n{'='*60}")
+                    print("🔥 50 USUARIOS ALCANZADOS 🔥")
+                    print("¡El tráfico está fluyendo hacia AWS RDS con éxito!")
+                    print(f"{'='*60}\n")
+                    
+            elif resultado in ["TIMEOUT", "SERVER_ERROR"]:
+                fallos_consecutivos += 1
 
             # KILL SWITCH
             if fallos_consecutivos >= MAX_CONSECUTIVE_FAILURES:
-                print("\n ABORTANDO: Servidor saturado. Migración a la nube requerida.")
+                print("\n🚨 ABORTANDO: Servidor saturado. Migración a la nube requerida.")
                 sys.exit()
 
 
@@ -122,7 +137,7 @@ def modo_estres():
 #  MENÚ
 # -------------------------------
 def menu():
-    print("\n QA STRESS TEST - THE VAULT\n")
+    print("\n🛡️ QA STRESS TEST - THE VAULT\n")
     print("1. Modo Demostración (visual)")
     print("2. Modo Estrés (carga real)\n")
 
