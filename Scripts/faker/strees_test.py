@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
 
 # CONFIG
-ENDPOINT = "https://api.thevaultretrosound.page/api"
+ENDPOINT = "https://api.thevaultretrosound.page/api/usuarios/register"  # Asegúrate de que esta URL apunte directamente a tu API
 
 TOTAL_REQUESTS = 500
 MAX_WORKERS = 20
@@ -20,6 +20,7 @@ fake.seed_instance(42)  # para reproducibilidad
 # -------------------------------
 def crear_usuario():
     payload = {
+        "username": fake.user_name(),
         "nombre": fake.name(),
         "email": fake.email(),
         "password": "password123"
@@ -29,17 +30,17 @@ def crear_usuario():
 
     try:
         # Se corrigió la URL para golpear solo la API directamente
-        response = requests.get(
+        response = requests.post(
             ENDPOINT,
-            params=payload,
+            json=payload,
             timeout=TIMEOUT
         )
 
         elapsed = (time.time() - start) * 1000
 
         # Éxito
-        if response.status_code == 200:
-            print(f"✅ 200 OK | {elapsed:.2f} ms")
+        if response.status_code in [200, 201]:
+            print(f"✅ 200/201 OK | {elapsed:.2f} ms")
             return "OK"
 
         # Errores del servidor
@@ -48,7 +49,7 @@ def crear_usuario():
             return "SERVER_ERROR"
 
         else:
-            print(f"⚠️ {response.status_code} | {elapsed:.2f} ms")
+            print(f"⚠️ {response.status_code} ERROR DE VALIDACION: {response.text} | {elapsed:.2f} ms")
             return "OTHER"
 
     except requests.exceptions.Timeout:
