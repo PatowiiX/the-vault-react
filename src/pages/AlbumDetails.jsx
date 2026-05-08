@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import SpotifyPreview from '../components/SpotifyPreview';
+import SpotifyPreviewCard from '../components/SpotifyPreviewCard';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -225,6 +225,12 @@ const AlbumDetails = () => {
                 )}
               </div>
             </div>
+            
+            {/* 🎵 SPOTIFY PREVIEW - TARJETA MODERNA */}
+            <SpotifyPreviewCard 
+              albumTitle={album.title} 
+              artistName={album.artist} 
+            />
           </div>
 
           <div className="col-md-7">
@@ -283,7 +289,6 @@ const AlbumDetails = () => {
                 <p className="text-light">{album.description || 'Sin descripción disponible.'}</p>
               </div>
 
-              {/* ✅ SECCIÓN DE CANCIONES, DURACIÓN Y SKU - CORREGIDA */}
               <div className="row bg-dark-secondary p-3 rounded mb-4">
                 <div className="col-4 text-center">
                   <i className="bi bi-music-note-list fs-4 text-pink"></i>
@@ -300,7 +305,6 @@ const AlbumDetails = () => {
                 <div className="col-4 text-center">
                   <i className="bi bi-upc-scan fs-4 text-pink"></i>
                   <p className="mb-0 mt-2">
-                    {/* ✅ SKU: visible SOLO para administradores */}
                     {isAdmin ? (
                       album.sku || 'N/A'
                     ) : (
@@ -312,12 +316,6 @@ const AlbumDetails = () => {
                   </p>
                 </div>
               </div>
-
-              {/* Spotify Preview */}
-              <SpotifyPreview 
-                albumTitle={album.title} 
-                artistName={album.artist} 
-              />
 
               <div className="d-flex flex-column gap-3 mt-auto">
                 <button 

@@ -169,7 +169,7 @@ export const AppProvider = ({ children }) => {
         descripcion: productData.description,
         top: productData.featured ? 1 : 0,
         precio: productData.price || 25.00,
-        stock: productData.stock !== undefined ? productData.stock : 10,  // ✅ CORREGIDO
+        stock: productData.stock !== undefined ? productData.stock : 10,
         heritage: productData.heritage ? 1 : 0,
         tracks: productData.tracks || 10,
         duration: productData.duration || '45:00',
@@ -210,7 +210,7 @@ export const AppProvider = ({ children }) => {
         descripcion: productData.description,
         top: productData.featured ? 1 : 0,
         precio: productData.price || 25.00,
-        stock: productData.stock !== undefined ? productData.stock : 10,  // ✅ CORREGIDO
+        stock: productData.stock !== undefined ? productData.stock : 10,
         heritage: productData.heritage ? 1 : 0,
         tracks: productData.tracks || 10,
         duration: productData.duration || '45:00',
@@ -461,9 +461,37 @@ export const AppProvider = ({ children }) => {
     }
   }, [cart, currentUser, calculateCartTotal, calculateCartTax, calculateCartShipping, calculateCartGrandTotal]);
 
-  // ===== CAPTURE PAYPAL ORDER =====
+  // ===== CAPTURE PAYPAL ORDER (CORREGIDO) =====
   const capturePayPalOrder = useCallback(async (orderId, paymentDetails) => {
     try {
+      // ✅ OBTENER USERID DE paymentDetails (prioridad)
+      let userId = paymentDetails?.userId || paymentDetails?.usuario_id;
+      
+      // ✅ SI NO VIENE, INTENTAR DESDE currentUser
+      if (!userId && currentUser?.id) {
+        userId = currentUser.id;
+      }
+      
+      // ✅ SI NO, BUSCAR EN LOCALSTORAGE
+      if (!userId) {
+        const savedUser = localStorage.getItem('retrosound_user');
+        if (savedUser) {
+          try {
+            const user = JSON.parse(savedUser);
+            userId = user.id;
+            console.log("📍 Usuario obtenido desde localStorage:", userId);
+          } catch (e) {
+            console.error("Error parseando usuario:", e);
+          }
+        }
+      }
+      
+      // ✅ SI NO HAY USERID, ERROR
+      if (!userId) {
+        console.error("❌ No se encontró userId");
+        throw new Error("ID de usuario requerido");
+      }
+
       let cartToUse = checkoutData?.cart;
       let subtotalToUse = checkoutData?.subtotal;
       let taxToUse = checkoutData?.tax;
@@ -496,7 +524,7 @@ export const AppProvider = ({ children }) => {
 
       const datosParaEnviar = {
         orderId: orderId,
-        usuario_id: currentUser?.id,
+        usuario_id: userId,  // ✅ ENVIAR EL userId OBTENIDO
         cart: cartToUse,
         total: totalToUse,
         subtotal: subtotalToUse,
@@ -504,6 +532,8 @@ export const AppProvider = ({ children }) => {
         shipping: shippingToUse,
         shippingAddress: checkoutData?.shippingAddress || paymentDetails?.shippingAddress || {}
       };
+
+      console.log("📤 Enviando a /paypal/capture-order:", { ...datosParaEnviar, cart: `${cartToUse.length} items` });
 
       const response = await fetch(`${API_URL}/paypal/capture-order`, {
         method: 'POST',

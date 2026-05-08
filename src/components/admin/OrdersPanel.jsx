@@ -20,7 +20,7 @@ const OrdersPanel = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     await updateOrderStatus(orderId, newStatus);
-    await fetchOrders(); // Recargar después de cambiar estado
+    await fetchOrders();
   };
 
   const getStatusBadge = (estado) => {
@@ -36,7 +36,9 @@ const OrdersPanel = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('es-MX', {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('es-MX', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -46,50 +48,36 @@ const OrdersPanel = () => {
   };
 
   const formatCurrency = (amount) => {
+    const num = parseFloat(amount);
+    if (isNaN(num)) return 'MXN 0.00';
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
       currency: 'MXN'
-    }).format(amount || 0);
+    }).format(num);
   };
 
-  // 🔧 FUNCIÓN PARA NORMALIZAR LOS ITEMS (CORREGIDA)
-  const normalizeOrderItems = (order) => {
+  // ✅ FUNCIÓN MEJORADA PARA NORMALIZAR LOS ITEMS
+  const parseOrderItems = (order) => {
     if (!order) return [];
     
-    // Si ya tiene items y es array, normalizarlos
-    if (order.items && Array.isArray(order.items)) {
-      return order.items.map(item => ({
-        titulo: item.titulo || item.title || item.nombre || 'Producto',
-        artista: item.artista || item.artist || 'Artista',
-        formato: item.formato || item.format || 'Vinyl',
-        cantidad: item.cantidad || item.quantity || 1,
-        precio: parseFloat(item.precio_unitario || item.precio || item.price || 0),
-        imagen: item.imagen || item.image || null
-      }));
+    // Si ya tiene items y es un array, usarlo
+    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+      return order.items;
     }
     
-    // Si orden_items es string, parsearlo
+    // Si orden_items existe, intentar parsearlo
     if (order.orden_items) {
       try {
-        let parsedItems;
         if (typeof order.orden_items === 'string') {
-          parsedItems = JSON.parse(order.orden_items);
-        } else {
-          parsedItems = order.orden_items;
+          const parsed = JSON.parse(order.orden_items);
+          return Array.isArray(parsed) ? parsed : [];
         }
-        
-        if (Array.isArray(parsedItems)) {
-          return parsedItems.map(item => ({
-            titulo: item.titulo || item.title || item.nombre || 'Producto',
-            artista: item.artista || item.artist || 'Artista',
-            formato: item.formato || item.format || 'Vinyl',
-            cantidad: item.cantidad || item.quantity || 1,
-            precio: parseFloat(item.precio_unitario || item.precio || item.price || 0),
-            imagen: item.imagen || item.image || null
-          }));
+        if (Array.isArray(order.orden_items)) {
+          return order.orden_items;
         }
       } catch (e) {
-        console.error("Error parseando orden_items:", e);
+        console.error('Error parseando orden_items:', e);
+        return [];
       }
     }
     
@@ -121,6 +109,7 @@ const OrdersPanel = () => {
         <div className="spinner-border text-pink" role="status">
           <span className="visually-hidden">Cargando...</span>
         </div>
+        <p className="text-white mt-3">Cargando pedidos...</p>
       </div>
     );
   }
@@ -142,7 +131,7 @@ const OrdersPanel = () => {
         </button>
       </div>
 
-      {/* Filtros y búsqueda */}
+      {/* Filtros */}
       <div className="row mb-4">
         <div className="col-md-6">
           <div className="btn-group" role="group">
@@ -170,6 +159,18 @@ const OrdersPanel = () => {
             >
               Enviados
             </button>
+            <button 
+              className={`btn btn-sm ${filter === 'entregado' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('entregado')}
+            >
+              Entregados
+            </button>
+            <button 
+              className={`btn btn-sm ${filter === 'cancelado' ? 'btn-danger' : 'btn-outline-danger'}`}
+              onClick={() => setFilter('cancelado')}
+            >
+              Cancelados
+            </button>
           </div>
         </div>
         <div className="col-md-6">
@@ -191,8 +192,7 @@ const OrdersPanel = () => {
       {filteredOrders.length === 0 ? (
         <div className="text-center py-5 text-muted bg-glass-dark rounded">
           <i className="bi bi-inbox fs-1"></i>
-          <p className="text-white mt-3">No hay pedidos registrados todavía.</p>
-          <p className="text-white-50 small">Los pedidos aparecerán aquí cuando los clientes realicen compras.</p>
+          <p className="text-white mt-3">No hay pedidos registrados.</p>
         </div>
       ) : (
         <div className="table-responsive bg-glass-dark p-3 rounded shadow">
@@ -206,62 +206,44 @@ const OrdersPanel = () => {
                 <th>Total</th>
                 <th>Estado</th>
                 <th>Items</th>
-                <th>Seguimiento</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.map(order => {
-                const itemsCount = normalizeOrderItems(order).length;
+                const items = parseOrderItems(order);
                 return (
                   <tr key={order.id}>
+                    <td className="fw-bold">#{order.id}</td>
+                    <td><small className="text-white-50">{formatDate(order.created_at)}</small></td>
+                    <td><strong className="text-white">{order.usuario_nombre || 'Visitante'}</strong></td>
+                    <td><span className="text-white-50">{order.email || 'N/A'}</span></td>
+                    <td className="text-info fw-bold">{formatCurrency(order.total)}</td>
                     <td>
-                      <span className="badge bg-dark">#{order.id}</span>
-                    </td>
-                    <td>
-                      <small className="text-white">{formatDate(order.fecha || order.created_at)}</small>
-                    </td>
-                    <td>
-                      <strong className="text-white">
-                        {order.usuario_nombre || 'Visitante'}
-                      </strong>
-                    </td>
-                    <td>
-                      <span className="text-white">{order.email || 'N/A'}</span>
-                    </td>
-                    <td className="text-info fw-bold">
-                      {formatCurrency(order.total)}
-                    </td>
-                    <td>
-                      <span className={`badge ${getStatusBadge(order.estado)}`}>
-                        {order.estado?.toUpperCase() || 'PENDIENTE'}
-                      </span>
+                      <select
+                        className={`form-select form-select-sm ${getStatusBadge(order.estado)}`}
+                        value={order.estado || 'pendiente'}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        style={{ width: '130px', fontSize: '0.8rem' }}
+                      >
+                        <option value="pendiente">⏳ Pendiente</option>
+                        <option value="pagado">✅ Pagado</option>
+                        <option value="enviado">📦 Enviado</option>
+                        <option value="entregado">🎁 Entregado</option>
+                        <option value="cancelado">❌ Cancelado</option>
+                      </select>
                     </td>
                     <td>
                       <button 
                         className="btn btn-sm btn-outline-info"
-                        onClick={() => setSelectedOrder(selectedOrder?.id === order.id ? null : order)}
+                        onClick={() => setSelectedOrder(selectedOrder === order.id ? null : order)}
                       >
                         <i className="bi bi-eye me-1"></i>
-                        Ver ({itemsCount})
+                        Ver ({items.length})
                       </button>
                     </td>
                     <td>
-                      <span className="text-white">{order.tracking_number || '—'}</span>
-                    </td>
-                    <td>
-                      <select 
-                        className="form-select form-select-sm bg-dark text-white border-pink"
-                        value={order.estado || 'pendiente'}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        style={{ width: '130px' }}
-                      >
-                        <option value="pendiente">🟡 Pendiente</option>
-                        <option value="pagado">🟢 Pagado</option>
-                        <option value="enviado">🔵 Enviado</option>
-                        <option value="entregado">🟣 Entregado</option>
-                        <option value="cancelado">🔴 Cancelado</option>
-                      </select>
+                      <span className="badge bg-dark">{order.tracking_number || '—'}</span>
                     </td>
                   </tr>
                 );
@@ -269,14 +251,14 @@ const OrdersPanel = () => {
             </tbody>
           </table>
 
-          {/* MODAL DE DETALLES DEL PEDIDO - CORREGIDO */}
+          {/* MODAL DE DETALLES */}
           {selectedOrder && (
-            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
+            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 1060 }}>
               <div className="modal-dialog modal-lg modal-dialog-centered">
                 <div className="modal-content bg-dark text-white border-pink">
                   <div className="modal-header border-secondary">
                     <h5 className="modal-title text-white">
-                      <i className="bi bi-box-seam me-2 text-pink"></i>
+                      <i className="bi bi-receipt me-2 text-pink"></i>
                       DETALLES DEL PEDIDO #{selectedOrder.id}
                     </h5>
                     <button 
@@ -286,102 +268,82 @@ const OrdersPanel = () => {
                     ></button>
                   </div>
                   <div className="modal-body">
-                    {/* Información general */}
+                    {/* Información del pedido */}
                     <div className="row mb-4">
                       <div className="col-md-6">
-                        <p className="text-white mb-1"><strong>Cliente:</strong> {selectedOrder.usuario_nombre || 'N/A'}</p>
-                        <p className="text-white mb-1"><strong>Email:</strong> {selectedOrder.email || 'N/A'}</p>
-                        <p className="text-white mb-1"><strong>Fecha:</strong> {formatDate(selectedOrder.fecha || selectedOrder.created_at)}</p>
+                        <p className="mb-1"><strong>Cliente:</strong> <span className="text-white-50">{selectedOrder.usuario_nombre || 'N/A'}</span></p>
+                        <p className="mb-1"><strong>Email:</strong> <span className="text-white-50">{selectedOrder.email || 'N/A'}</span></p>
+                        <p className="mb-1"><strong>Fecha:</strong> <span className="text-white-50">{formatDate(selectedOrder.created_at)}</span></p>
                       </div>
                       <div className="col-md-6">
-                        <p className="text-white mb-1"><strong>Total:</strong> {formatCurrency(selectedOrder.total)}</p>
-                        <p className="text-white mb-1">
-                          <strong>Estado:</strong> 
-                          <span className={`badge ${getStatusBadge(selectedOrder.estado)} ms-2`}>
-                            {selectedOrder.estado?.toUpperCase()}
-                          </span>
-                        </p>
-                        <p className="text-white mb-1"><strong>Seguimiento:</strong> {selectedOrder.tracking_number || 'N/A'}</p>
+                        <p className="mb-1"><strong>Total:</strong> <span className="text-success fw-bold">{formatCurrency(selectedOrder.total)}</span></p>
+                        <p className="mb-1"><strong>Tracking:</strong> <span className="text-info">{selectedOrder.tracking_number || 'N/A'}</span></p>
+                        <p className="mb-1"><strong>Método de pago:</strong> <span className="text-white-50">{selectedOrder.metodo_pago || 'PayPal'}</span></p>
                       </div>
                     </div>
 
-                    <h6 className="text-pink mb-3">
-                      <i className="bi bi-cart me-2"></i>
-                      PRODUCTOS DEL PEDIDO:
-                    </h6>
+                    <h6 className="text-pink mb-3">PRODUCTOS</h6>
                     
-                    {/* ✅ TABLA DE PRODUCTOS CORREGIDA */}
                     {(() => {
-                      const items = normalizeOrderItems(selectedOrder);
+                      const items = parseOrderItems(selectedOrder);
                       return items.length > 0 ? (
                         <div className="table-responsive">
                           <table className="table table-dark table-sm">
                             <thead>
-                              <tr style={{ borderBottom: '1px solid #00ff88' }}>
+                              <tr className="text-white-50">
                                 <th>Producto</th>
                                 <th>Artista</th>
                                 <th>Formato</th>
                                 <th className="text-center">Cantidad</th>
-                                <th className="text-end">Precio Unit.</th>
+                                <th className="text-end">Precio</th>
                                 <th className="text-end">Subtotal</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {items.map((item, idx) => (
-                                <tr key={idx}>
-                                  <td>
-                                    <div className="d-flex align-items-center gap-2">
-                                      {item.imagen && (
-                                        <img 
-                                          src={item.imagen} 
-                                          alt={item.titulo}
-                                          style={{ width: '35px', height: '35px', objectFit: 'cover', borderRadius: '5px' }}
-                                        />
-                                      )}
-                                      <strong className="text-white">{item.titulo}</strong>
-                                    </div>
-                                  </td>
-                                  <td className="text-white-50">{item.artista}</td>
-                                  <td>
-                                    <span className={`badge ${
-                                      item.formato === 'Vinyl' ? 'bg-pink' : 
-                                      item.formato === 'CD' ? 'bg-info' : 'bg-gold'
-                                    }`}>
-                                      {item.formato}
-                                    </span>
-                                  </td>
-                                  <td className="text-center text-white">{item.cantidad}</td>
-                                  <td className="text-end text-info">{formatCurrency(item.precio)}</td>
-                                  <td className="text-end text-success fw-bold">
-                                    {formatCurrency(item.precio * item.cantidad)}
-                                  </td>
-                                </tr>
-                              ))}
+                              {items.map((item, idx) => {
+                                const titulo = item.titulo || item.title || 'Producto';
+                                const artista = item.artista || item.artist || 'Artista';
+                                const formato = item.formato || item.format || 'Vinyl';
+                                const cantidad = item.cantidad || item.quantity || 1;
+                                const precio = parseFloat(item.precio_unitario || item.precio || item.price || 0);
+                                const subtotal = precio * cantidad;
+                                
+                                return (
+                                  <tr key={idx}>
+                                    <td className="text-white fw-bold">{titulo}</td>
+                                    <td className="text-white-50">{artista}</td>
+                                    <td><span className="badge bg-dark">{formato}</span></td>
+                                    <td className="text-center text-white">{cantidad}</td>
+                                    <td className="text-end text-info">{formatCurrency(precio)}</td>
+                                    <td className="text-end text-success">{formatCurrency(subtotal)}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                             <tfoot>
-                              <tr>
+                              <tr className="border-top">
                                 <td colSpan="5" className="text-end text-white-50"><strong>Subtotal:</strong></td>
                                 <td className="text-end text-white">{formatCurrency(selectedOrder.subtotal || 0)}</td>
-                              </tr>
+                               </tr>
                               <tr>
                                 <td colSpan="5" className="text-end text-white-50"><strong>Envío:</strong></td>
                                 <td className="text-end text-white">{formatCurrency(selectedOrder.shipping_cost || 0)}</td>
-                              </tr>
+                               </tr>
                               <tr>
                                 <td colSpan="5" className="text-end text-white-50"><strong>IVA (16%):</strong></td>
                                 <td className="text-end text-white">{formatCurrency(selectedOrder.tax_amount || 0)}</td>
-                              </tr>
-                              <tr style={{ borderTop: '2px solid #00ff88' }}>
+                               </tr>
+                              <tr className="border-top">
                                 <td colSpan="5" className="text-end text-white fw-bold fs-5"><strong>TOTAL:</strong></td>
                                 <td className="text-end text-success fw-bold fs-5">{formatCurrency(selectedOrder.total || 0)}</td>
-                              </tr>
+                               </tr>
                             </tfoot>
                           </table>
                         </div>
                       ) : (
                         <div className="alert alert-warning">
                           <i className="bi bi-exclamation-triangle me-2"></i>
-                          No se pudieron cargar los productos de esta orden.
+                          No hay productos en esta orden.
                           <br />
                           <small className="text-white-50">
                             Datos crudos: {JSON.stringify(selectedOrder.orden_items)?.substring(0, 100)}...
@@ -390,17 +352,13 @@ const OrdersPanel = () => {
                       );
                     })()}
                     
-                    {/* Dirección de envío */}
                     {selectedOrder.direccion_envio && (
-                      <div className="mt-4 p-3" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '10px' }}>
+                      <div className="mt-3 p-3 bg-dark-light rounded">
                         <h6 className="text-pink mb-2">
                           <i className="bi bi-geo-alt me-2"></i>
                           Dirección de envío
                         </h6>
                         <p className="text-white mb-1">{selectedOrder.direccion_envio}</p>
-                        <p className="text-white-50 small mb-0">
-                          <span className="text-white">Método de pago:</span> {selectedOrder.metodo_pago || 'PayPal'}
-                        </p>
                       </div>
                     )}
                   </div>
@@ -413,9 +371,7 @@ const OrdersPanel = () => {
                     </button>
                     <button 
                       className="btn btn-pink"
-                      onClick={() => {
-                        window.open(`/admin/ordenes/${selectedOrder.id}`, '_blank');
-                      }}
+                      onClick={() => window.print()}
                     >
                       <i className="bi bi-printer me-2"></i>
                       Imprimir

@@ -1922,3 +1922,77 @@ hr.border-secondary {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+/* Spotify Preview Card */
+.spotify-card {
+  background: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,255,136,0.05));
+  border-radius: 16px;
+  padding: 12px 16px;
+  border: 1px solid rgba(0,255,136,0.2);
+  transition: all 0.3s ease;
+  margin-top: 20px;
+}
+
+.spotify-card:hover {
+  border-color: rgba(0,255,136,0.5);
+  box-shadow: 0 0 15px rgba(0,255,136,0.1);
+}
+
+.spotify-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.spotify-header i {
+  font-size: 1.2rem;
+}
+
+.spotify-badge {
+  background: rgba(0,255,136,0.15);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #00ff88;
+}
+
+.spotify-collapse-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  margin-left: auto;
+  transition: color 0.3s ease;
+}
+
+.spotify-collapse-btn:hover {
+  color: #00ff88;
+}
+
+.spotify-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.spotify-player {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.spotify-player:hover {
+  transform: scale(1.01);
+}
+.format-item-card.out-of-stock {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+  background: #2a2a2a;
+}
+
+.format-item-card.out-of-stock:hover {
+  transform: none;
+  box-shadow: none;
+}

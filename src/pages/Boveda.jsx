@@ -3,24 +3,74 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Boveda = () => {
-  const { adminProducts, addToCart, isLoggedIn, refreshProducts } = useApp();
+  const { addToCart, isLoggedIn } = useApp();
+  
+  //  ESTADO LOCAL PARA PRODUCTOS (CARGA DIRECTA DESDE API)
+  const [adminProducts, setAdminProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [genreFilter, setGenreFilter] = useState('all');
   const [sortBy, setSortBy] = useState('default');
 
-  useEffect(() => {
-    refreshProducts();
-    const interval = setInterval(() => refreshProducts(), 30000);
-    return () => clearInterval(interval);
-  }, [refreshProducts]);
+  // CARGA DIRECTA DESDE LA API (SIN CACHÉ)
+  const cargarProductos = async () => {
+    setLoading(true);
+    try {
+      console.log("🔄 Cargando productos directamente desde API...");
+      const response = await fetch('http://localhost:3001/api/discos');
+      const data = await response.json();
+      
+      console.log("📦 Datos recibidos:", data.discos.map(d => ({ titulo: d.titulo, stock: d.stock })));
+      
+      // Normalizar productos
+      const productosNormalizados = data.discos.map(disco => ({
+        id: disco.id,
+        title: disco.titulo,
+        artist: disco.artista,
+        year: disco.anio,
+        genre: disco.genero,
+        format: disco.formato,
+        image: disco.imagen_path,
+        description: disco.descripcion,
+        price: parseFloat(disco.precio) || 25.00,
+        stock: disco.stock || 0,
+        featured: disco.top === 1,
+        heritage: disco.heritage === 1,
+        tracks: disco.tracks || 10,
+        duration: disco.duration || '45:00',
+        sku: disco.sku,
+        edition: disco.edition
+      }));
+      
+      setAdminProducts(productosNormalizados);
+    } catch (error) {
+      console.error("❌ Error cargando productos:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // ✅ FILTROS CORREGIDOS - Excluye agotados en todos los filtros excepto 'outofstock'
+  // Cargar productos al montar el componente
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  // Refrescar cada 30 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log("🔄 Refresco automático cada 30s...");
+      cargarProductos();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Aplicar filtros
   useEffect(() => {
     let filtered = [...adminProducts];
     
-    // ✅ CORREGIDO: Excluir agotados SIEMPRE excepto cuando el filtro es 'outofstock'
     if (activeFilter !== 'outofstock') {
       filtered = filtered.filter(p => p.stock > 0);
     }
@@ -34,7 +84,6 @@ const Boveda = () => {
       );
     }
     
-    // Filtros específicos
     if (activeFilter === 'featured') {
       filtered = filtered.filter(p => p.featured);
     } else if (activeFilter === 'lowstock') {
@@ -48,7 +97,6 @@ const Boveda = () => {
     } else if (activeFilter === 'heritage') {
       filtered = filtered.filter(p => p.heritage);
     } else if (activeFilter === 'outofstock') {
-      // Mostrar SOLO agotados (sin el filtro de stock > 0 de arriba)
       filtered = adminProducts.filter(p => p.stock === 0);
     }
     
@@ -89,7 +137,7 @@ const Boveda = () => {
     
     if (result?.success) {
       alert(`✅ ${product.title} agregado al carrito`);
-      await refreshProducts();
+      await cargarProductos(); // Recargar productos después de agregar
     } else {
       alert(`❌ ${result?.message || 'No se pudo agregar al carrito'}`);
     }
@@ -108,13 +156,15 @@ const Boveda = () => {
   };
 
   const getStockDisplay = (product) => {
-    if (product.stock <= 0) {
-      return <span style={{ color: '#ff4444', fontWeight: 'bold' }}>❌ AGOTADO</span>;
+    const stockActual = Number(product.stock) || 0;
+    
+    if (stockActual <= 0) {
+      return <span style={{ color: '#888', fontWeight: 'bold' }}>🔴 NO DISPONIBLE</span>;
     }
-    if (product.stock < 5) {
-      return <span style={{ color: '#ffaa00' }}>⚠️ ¡Últimas {product.stock}!</span>;
+    if (stockActual < 5) {
+      return <span style={{ color: '#ffaa00' }}>⚠️ ¡Últimas {stockActual}!</span>;
     }
-    return <span style={{ color: '#4caf50' }}>✅ {product.stock} disponibles</span>;
+    return <span style={{ color: '#4caf50' }}>✅ {stockActual} disponibles</span>;
   };
 
   const getFormatoDisplay = (product) => {
@@ -125,6 +175,19 @@ const Boveda = () => {
     "Rock", "Pop", "Jazz", "Hip Hop", "Electronic", "Classical", "Metal", "Indie",
     "New Wave", "Alternative", "Acid Jazz", "Funk", "Country"
   ].sort();
+
+  if (loading) {
+    return (
+      <div className="content-view fade-in">
+        <div className="container text-center py-5">
+          <div className="spinner-border text-pink" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </div>
+          <p className="text-white mt-3">Cargando catálogo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="content-view fade-in">
@@ -245,9 +308,18 @@ const Boveda = () => {
 
         <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
           {filteredProducts.map(product => (
-            <div key={product.id} className="col">
+            <div key={`${product.id}-${product.stock}`} className="col">
               <Link to={`/album/${product.id}`} className="text-decoration-none">
-                <div className={`format-item-card clickable-card ${product.heritage ? 'heritage-card' : ''} ${product.stock <= 0 ? 'out-of-stock' : ''}`}>
+                <div 
+                  className={`format-item-card clickable-card ${product.heritage ? 'heritage-card' : ''}`}
+                  style={{
+                    opacity: product.stock <= 0 ? 0.6 : 1,
+                    filter: product.stock <= 0 ? 'grayscale(0.5)' : 'none',
+                    background: product.stock <= 0 ? '#2a2a2a' : '',
+                    transition: 'all 0.3s ease',
+                    cursor: product.stock <= 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
                   <div 
                     className="format-item-image"
                     style={{
@@ -280,8 +352,8 @@ const Boveda = () => {
                     </span>
 
                     {product.stock <= 0 && (
-                      <span className="badge bg-danger position-absolute top-0 end-0 m-2">
-                        ❌ AGOTADO
+                      <span className="badge bg-secondary position-absolute top-0 end-0 m-2">
+                        ❌ NO DISPONIBLE
                       </span>
                     )}
                     
@@ -359,6 +431,7 @@ const Boveda = () => {
                 setActiveFilter('all');
                 setGenreFilter('all');
                 setSortBy('default');
+                cargarProductos(); // Recargar productos al limpiar filtros
               }}
             >
               <i className="bi bi-arrow-clockwise me-2"></i>

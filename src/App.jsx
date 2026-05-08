@@ -1,19 +1,25 @@
 import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useApp } from './context/AppContext';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AppProvider, useApp } from './context/AppContext';
 
 import Header from './components/Header';
+
+// Pages
 import Home from './pages/Home';
 import Boveda from './pages/Boveda';
 import Heritage from './pages/Heritage';
 import Formatos from './pages/Formatos';
 import AlbumDetails from './pages/AlbumDetails';
 import MiCuenta from './pages/MiCuenta';
-import PagoExitoso from './pages/PagoExitoso';
+
+// Components
 import Cart from './components/Cart';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import SearchBar from './components/SearchBar';
+import PagoExitoso from './pages/PagoExitoso'; //  IMPORTAR COMPONENTE
+
+// Admin Pages
 import AdminPanel from './components/admin/AdminPanel';
 import OrdersPanel from './components/admin/OrdersPanel';
 
@@ -50,23 +56,25 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<Home />} />
-    <Route path="/login" element={<Home />} />
-    <Route path="/boveda" element={<Boveda />} />
-    <Route path="/heritage" element={<Heritage />} />
-    <Route path="/formatos" element={<Formatos />} />
-    <Route path="/album/:id" element={<AlbumDetails />} />
-    <Route path="/buscar" element={<SearchBar />} />
-    <Route path="/forgot-password" element={<ForgotPassword />} />
-    <Route path="/reset-password" element={<ResetPassword />} />
-    <Route path="/reset-password/:token" element={<ResetPassword />} />
-    <Route path="/pago-exitoso" element={<PagoExitoso />} />
-
-    <Route
-      path="/cart"
-      element={
+// Main App Component
+const AppRoutes = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Home />} />
+      <Route path="/boveda" element={<Boveda />} />
+      <Route path="/heritage" element={<Heritage />} />
+      <Route path="/formatos" element={<Formatos />} />
+      <Route path="/album/:id" element={<AlbumDetails />} />
+      <Route path="/buscar" element={<SearchBar />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
+      
+      {/* ✅ RUTA DE PAYPAL - IMPORTANTE */}
+      <Route path="/pago-exitoso" element={<PagoExitoso />} />
+      
+      {/* Protected Routes (require login) */}
+      <Route path="/cart" element={
         <ProtectedRoute>
           <Cart />
         </ProtectedRoute>
@@ -123,5 +131,5 @@ function App() {
     </div>
   );
 }
-
+}
 export default App;
