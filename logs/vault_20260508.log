@@ -1,0 +1,9 @@
+2026-05-08 16:34:32 - VaultOrchestrator - INFO - Iniciando orquestación del sistema
+2026-05-08 16:34:32 - VaultOrchestrator - INFO - Limpiando procesos anteriores...
+2026-05-08 16:34:33 - VaultOrchestrator - ERROR - Comando falló: pm2 delete all
+2026-05-08 16:34:33 - VaultOrchestrator - ERROR - Error: [33m[PM2][WARN] [39mNo process found
+
+2026-05-08 16:34:33 - VaultOrchestrator - INFO - ✅ vault-backend está online
+2026-05-08 16:34:33 - VaultOrchestrator - INFO - ✅ vault-frontend está online
+2026-05-08 16:34:34 - VaultOrchestrator - INFO - ✅ vault-backups está online
+2026-05-08 16:34:34 - VaultOrchestrator - INFO - ✅ vault-autogit está online

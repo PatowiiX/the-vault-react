@@ -3,3 +3,8 @@
 ✅ Resend configurado para recuperación de contraseña
 Servidor listo en http://localhost:3001
 ✅ Conectado a MySQL (vault)
+◇ injected env (10) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (0) from C:/Users/patog/OneDrive/Desktop/the-vault-react/backend/.env // tip: ⌘ override existing { override: true }
+✅ Resend configurado para recuperación de contraseña
+Servidor listo en http://localhost:3001
+✅ Conectado a MySQL (vault)
