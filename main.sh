@@ -1,307 +1,212 @@
 #!/bin/bash
 
-# ==============================
-#   THE VAULT - MAIN ENTRY
-# ==============================
-
-# Configuración estricta para mejor manejo de errores
 set -euo pipefail
-IFS=$'\n\t'
 
-# Colores para output
+# ================================
+# CONFIGURACIÓN
+# ================================
+PORT_API=3001
+PORT_FRONT=3000
+ENV_FILE=".env.development"
+LOG_FILE="tunnel.log"
+PID_FILE=".tunnel_pids"
+DEFAULT_DB_ENV="${VAULT_DB_ENV:-aws}"
+
+# Colores
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Variables de entorno
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_DIR="${SCRIPT_DIR}/logs"
-LOG_FILE="${LOG_DIR}/vault.log"
-PID_FILE="${SCRIPT_DIR}/vault.pid"
-PYTHON_SCRIPT="${SCRIPT_DIR}/pipeline.py"
+# ================================
+# VALIDAR DEPENDENCIAS
+# ================================
+check_dependencies() {
+    for cmd in cloudflared pm2 python3 curl; do
+        if ! command -v $cmd &> /dev/null; then
+            echo -e "${RED}❌ Falta dependencia: $cmd${NC}"
+            exit 1
+        fi
+    done
+}
 
-# Crear directorio de logs si no existe
-mkdir -p "$LOG_DIR"
+usage() {
+    echo "Uso: $0 {start|stop|restart|status} [local|aws|--env local|--env=aws]"
+    echo "Ejemplos:"
+    echo "  $0 start aws"
+    echo "  $0 start --env local"
+    echo "  $0 restart local"
+    echo "  VAULT_DB_ENV=local $0 start"
+}
 
-# ==============================
-#   FUNCIONES AUXILIARES
-# ==============================
-
-log() {
-    local level=$1
-    shift
-    local message="$*"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    echo -e "${timestamp} [${level}] ${message}" >> "$LOG_FILE"
-    
-    case $level in
-        "INFO") echo -e "${GREEN}✓${NC} $message" ;;
-        "WARN") echo -e "${YELLOW}⚠${NC} $message" ;;
-        "ERROR") echo -e "${RED}✗${NC} $message" ;;
-        "DEBUG") echo -e "${CYAN}🔍${NC} $message" ;;
-        *) echo "$message" ;;
+validate_env_mode() {
+    case "$1" in
+        local|aws)
+            ;;
+        *)
+            echo -e "${RED}❌ Entorno inválido: $1${NC}"
+            usage
+            exit 1
+            ;;
     esac
 }
 
-print_banner() {
-    echo ""
-    echo -e "${CYAN}╔════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║         🔐 THE VAULT SYSTEM 🔐            ║${NC}"
-    echo -e "${CYAN}║         Gestión del Ecosistema            ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════╝${NC}"
-    echo ""
-}
-
-check_python() {
-    if ! command -v python3 &> /dev/null; then
-        log "ERROR" "Python3 no está instalado"
-        echo -e "${RED}❌ Error: Python3 no está instalado${NC}"
-        echo "Por favor instala Python3: sudo apt install python3"
-        exit 1
-    fi
-    
-    if [ ! -f "$PYTHON_SCRIPT" ]; then
-        log "ERROR" "No se encuentra $PYTHON_SCRIPT"
-        echo -e "${RED}❌ Error: No se encuentra pipeline.py${NC}"
-        exit 1
-    fi
-    
-    log "DEBUG" "Python3 encontrado en: $(which python3)"
-}
-
-check_pm2() {
-    if ! command -v pm2 &> /dev/null; then
-        log "WARN" "PM2 no está instalado globalmente"
-        echo -e "${YELLOW}⚠️  PM2 no encontrado. El pipeline lo instalará automáticamente.${NC}"
-    else
-        log "DEBUG" "PM2 encontrado: $(pm2 --version)"
-    fi
-}
-
-check_process() {
-    if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
-        if ps -p "$pid" > /dev/null 2>&1; then
-            return 0 # Proceso corriendo
-        else
-            rm -f "$PID_FILE"
-            return 1 # Proceso no corriendo
+# ================================
+# VERIFICAR BACKEND
+# ================================
+wait_for_backend() {
+    echo "🔎 Verificando backend local..."
+    for i in {1..10}; do
+        if curl -s http://localhost:$PORT_API > /dev/null; then
+            echo -e "${GREEN}✅ Backend activo localmente${NC}"
+            return
         fi
-    fi
-    return 1
+        sleep 1
+    done
+    echo -e "${YELLOW}⚠️ Backend no respondió, continuando...${NC}"
 }
 
-run_pipeline_command() {
-    local cmd=$1
-    log "INFO" "Ejecutando pipeline command: $cmd"
-    
-    # Ejecutar pipeline.py y capturar salida
-    if python3 "$PYTHON_SCRIPT" "$cmd"; then
-        log "INFO" "Comando '$cmd' ejecutado exitosamente"
-        return 0
-    else
-        local exit_code=$?
-        log "ERROR" "Comando '$cmd' falló con código $exit_code"
-        return $exit_code
+# ================================
+# START (SECUENCIA MAESTRA)
+# ================================
+start_all() {
+    local db_env="${1:-$DEFAULT_DB_ENV}"
+
+    check_dependencies
+    validate_env_mode "$db_env"
+
+    echo "🧹 Limpiando procesos previos (Clean Slate)..."
+    ./pipeline.py stop 2>/dev/null || true
+    pkill -f cloudflared 2>/dev/null || true
+    rm -f "$LOG_FILE" "$PID_FILE"
+
+    echo "🚀 Iniciando ecosistema local (PM2) con BD ${db_env^^}..."
+    # pipeline.py aplica env_switcher.py en primer plano y registra
+    # vault-env-switcher en PM2 para que `pm2 list` muestre CPU/MEM del script.
+    ./pipeline.py start --env "$db_env"
+
+    wait_for_backend
+
+    echo "🌐 Levantando Túnel Permanente de Cloudflare..."
+    cloudflared tunnel run vault-backend > "$LOG_FILE" 2>&1 &
+    PID_API=$!
+
+    if kill -0 $PID_API 2>/dev/null; then
+        echo $PID_API >> "$PID_FILE"
     fi
+
+    # URL ESTÁTICA DEFINITIVA
+    API_URL="https://api.thevaultretrosound.page"
+    echo -e "${GREEN}🌐 URL Estática Activa: $API_URL${NC}"
+
+    # ================================
+    # ACTUALIZAR ENV DEL FRONTEND
+    # ================================
+    echo "💾 Creando backup del .env..."
+    if [ -f "$ENV_FILE" ]; then
+        cp "$ENV_FILE" "${ENV_FILE}.bak"
+    fi
+
+    echo "✏️ Inyectando URL permanente al frontend..."
+    if [ -f "$ENV_FILE" ]; then
+        if grep -q "REACT_APP_API_URL=" "$ENV_FILE"; then
+            sed -i "s|REACT_APP_API_URL=.*|REACT_APP_API_URL=$API_URL/api|g" "$ENV_FILE"
+        else
+            echo "REACT_APP_API_URL=$API_URL/api" >> "$ENV_FILE"
+        fi
+    else
+        echo "REACT_APP_API_URL=$API_URL/api" > "$ENV_FILE"
+    fi
+
+    # ================================
+    # VALIDACIÓN FINAL Y REINICIO
+    # ================================
+    # Pausa de 2 segundos para que Cloudflare agarre el tráfico
+    sleep 2 
+    
+    echo "🔄 Reiniciando motor de React (PM2)..."
+    pm2 restart vault-frontend > /dev/null 2>&1 || echo -e "${YELLOW}⚠️ Frontend no está en PM2${NC}"
+
+    echo -e "\n=============================================="
+    echo -e "🎉 ECOSISTEMA CON DOMINIO ESTATICO 99 CASI 100% OPERATIVO 🎉"
+    echo -e "🌐 API DE PRODUCCIÓN: $API_URL/api"
+    echo -e "🌍 ENTORNO DE BD: ${db_env^^}"
+    echo -e "📁 Variables de entorno actualizadas con éxito"
+    echo -e "==============================================\n"
 }
 
-start_vault() {
-    log "INFO" "🚀 Iniciando The Vault..."
-    echo ""
-    
-    if check_process; then
-        log "WARN" "The Vault ya está corriendo (PID: $(cat $PID_FILE))"
-        echo -e "${YELLOW}⚠️  El sistema ya está en ejecución${NC}"
-        return 1
-    fi
-    
-    # Ejecutar el pipeline
-    if run_pipeline_command "start"; then
-        # Guardar PID del proceso principal de PM2 o del pipeline
-        echo "$$" > "$PID_FILE"
-        log "INFO" "✅ The Vault iniciado correctamente"
-        echo -e "${GREEN}✅ Sistema iniciado exitosamente${NC}"
-        return 0
-    else
-        log "ERROR" "❌ Fallo al iniciar The Vault"
-        echo -e "${RED}❌ Error al iniciar el sistema${NC}"
+# ================================
+# STOP
+# ================================
+stop_all() {
+    echo "🛑 Deteniendo sistema..."
+
+    ./pipeline.py stop 2>/dev/null || true
+
+    if [ -f "$PID_FILE" ]; then
+        while read pid; do
+            kill $pid 2>/dev/null || true
+        done < "$PID_FILE"
         rm -f "$PID_FILE"
-        return 1
     fi
+
+    pkill -f cloudflared 2>/dev/null || true
+    rm -f "$LOG_FILE"
+
+    echo -e "${GREEN}✅ Sistema detenido${NC}"
 }
 
-stop_vault() {
-    log "INFO" "🛑 Deteniendo The Vault..."
-    echo ""
-    
-    if ! check_process; then
-        log "WARN" "The Vault no está corriendo"
-        echo -e "${YELLOW}⚠️  El sistema no está en ejecución${NC}"
-    fi
-    
-    # Ejecutar el pipeline
-    if run_pipeline_command "stop"; then
-        rm -f "$PID_FILE"
-        log "INFO" "💤 The Vault detenido"
-        echo -e "${GREEN}✅ Sistema detenido exitosamente${NC}"
-        return 0
-    else
-        log "ERROR" "❌ Fallo al detener The Vault"
-        echo -e "${RED}❌ Error al detener el sistema${NC}"
-        return 1
-    fi
+# ================================
+# STATUS
+# ================================
+status_all() {
+    echo "📊 Estado del sistema (PM2):"
+    pm2 list
+
+    echo -e "\n🌐 Túneles activos:"
+    pgrep -fl cloudflared || echo "No hay túneles activos"
 }
 
-restart_vault() {
-    log "INFO" "🔄 Reiniciando The Vault..."
-    echo ""
-    echo -e "${CYAN}🔄 Reiniciando el ecosistema...${NC}"
-    
-    if run_pipeline_command "restart"; then
-        log "INFO" "✅ The Vault reiniciado correctamente"
-        echo -e "${GREEN}✅ Sistema reiniciado exitosamente${NC}"
-        return 0
-    else
-        log "ERROR" "❌ Fallo al reiniciar The Vault"
-        echo -e "${RED}❌ Error al reiniciar el sistema${NC}"
-        return 1
-    fi
-}
+# ================================
+# ENTRY POINT
+# ================================
+COMMAND="${1:-start}"
+DB_ENV_MODE="$DEFAULT_DB_ENV"
 
-status_vault() {
-    log "INFO" "📊 Consultando estado del sistema..."
-    echo ""
-    run_pipeline_command "status"
-}
-
-health_vault() {
-    log "INFO" "🏥 Verificando salud del sistema..."
-    echo ""
-    run_pipeline_command "health"
-}
-
-show_logs() {
-    if [ -f "$LOG_FILE" ]; then
-        log "INFO" "Mostrando logs en tiempo real (Ctrl+C para salir)"
-        echo -e "${CYAN}📝 Mostrando logs del sistema...${NC}"
-        echo -e "${YELLOW}Presiona Ctrl+C para salir${NC}"
-        echo ""
-        tail -f "$LOG_FILE"
-    else
-        log "ERROR" "No existe archivo de log"
-        echo -e "${RED}❌ No se encontró el archivo de log${NC}"
-    fi
-}
-
-show_pipeline_logs() {
-    local pipeline_log="${LOG_DIR}/pipeline.log"
-    if [ -f "$pipeline_log" ]; then
-        log "INFO" "Mostrando logs del pipeline"
-        tail -50 "$pipeline_log"
-    else
-        log "WARN" "No hay logs del pipeline aún"
-        echo -e "${YELLOW}⚠️  No se encontraron logs del pipeline${NC}"
-    fi
-}
-
-clean_logs() {
-    log "INFO" "🧹 Limpiando logs antiguos..."
-    echo -e "${CYAN}🧹 Limpiando logs de más de 30 días...${NC}"
-    
-    local cleaned=0
-    if [ -d "$LOG_DIR" ]; then
-        cleaned=$(find "$LOG_DIR" -name "*.log" -type f -mtime +30 -delete -print | wc -l)
-        log "INFO" "Se eliminaron $cleaned archivos de log antiguos"
-        echo -e "${GREEN}✅ Se eliminaron $cleaned logs antiguos${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Directorio de logs no existe${NC}"
-    fi
-}
-
-show_help() {
-    echo ""
-    echo -e "${CYAN}════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}                    COMANDOS DISPONIBLES                  ${NC}"
-    echo -e "${CYAN}════════════════════════════════════════════════════════${NC}"
-    echo ""
-    echo -e "${GREEN}Gestión del Sistema:${NC}"
-    echo "  start      - Iniciar todo el ecosistema (Frontend + Backend + Scripts)"
-    echo "  stop       - Detener todo el ecosistema"
-    echo "  restart    - Reiniciar todo el ecosistema"
-    echo ""
-    echo -e "${GREEN}Monitoreo:${NC}"
-    echo "  status     - Ver estado detallado de todos los servicios"
-    echo "  health     - Verificar salud del sistema (health check)"
-    echo "  logs       - Ver logs del sistema en tiempo real"
-    echo "  pipeline-logs - Ver logs específicos del pipeline"
-    echo ""
-    echo -e "${GREEN}Mantenimiento:${NC}"
-    echo "  clean-logs - Limpiar logs antiguos (más de 30 días)"
-    echo "  help       - Mostrar esta ayuda"
-    echo ""
-    echo -e "${GREEN}Ejemplos:${NC}"
-    echo "  ./main.sh start"
-    echo "  ./main.sh status"
-    echo "  ./main.sh health"
-    echo "  ./main.sh logs"
-    echo ""
-}
-
-# ==============================
-#   MAIN
-# ==============================
-
-# Verificar argumentos
-ACTION=${1:-help}
-
-# Mostrar banner
-print_banner
-
-# Verificar dependencias básicas
-check_python
-check_pm2
-
-# Procesar comando
-case "$ACTION" in
-    start)
-        start_vault
+case "${2:-}" in
+    local|aws)
+        DB_ENV_MODE="$2"
         ;;
-    stop)
-        stop_vault
+    --env)
+        DB_ENV_MODE="${3:-}"
         ;;
-    restart)
-        restart_vault
+    --env=*)
+        DB_ENV_MODE="${2#--env=}"
         ;;
-    status)
-        status_vault
-        ;;
-    health)
-        health_vault
-        ;;
-    logs)
-        show_logs
-        ;;
-    pipeline-logs)
-        show_pipeline_logs
-        ;;
-    clean-logs)
-        clean_logs
-        ;;
-    help|--help|-h)
-        show_help
+    "")
         ;;
     *)
-        log "ERROR" "Comando inválido: $ACTION"
-        echo ""
-        echo -e "${RED}❌ Error: '$ACTION' no es un comando válido${NC}"
-        show_help
+        echo -e "${RED}❌ Parámetro no reconocido: $2${NC}"
+        usage
         exit 1
         ;;
 esac
 
-exit 0
+case "$COMMAND" in
+    start)
+        start_all "$DB_ENV_MODE"
+        ;;
+    stop)
+        stop_all
+        ;;
+    restart)
+        stop_all
+        start_all "$DB_ENV_MODE"
+        ;;
+    status)
+        status_all
+        ;;
+    *)
+        usage
+        ;;
+esac
